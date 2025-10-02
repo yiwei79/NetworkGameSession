@@ -6,9 +6,33 @@ using System.Diagnostics;
 
 public class BubbleSort : MonoBehaviour
 {
+    // Enum for algorithm selection in Inspector
+    public enum SortingAlgorithm
+    {
+        BubbleSort,
+        QuickSort
+    }
+
+    public enum ExecutionMode
+    {
+        MultiThreaded,
+        SingleThreaded
+    }
+
+    [Header("Algorithm Settings")]
+    [Tooltip("Choose which sorting algorithm to use")]
+    public SortingAlgorithm selectedAlgorithm = SortingAlgorithm.BubbleSort;
+
+    [Tooltip("Multi-threaded keeps game running, Single-threaded freezes game")]
+    public ExecutionMode executionMode = ExecutionMode.MultiThreaded;
+
+    [Header("Visualization")]
+    [Tooltip("Assign Cube Green or Cube Red prefab")]
+    public GameObject prefab;
+
+    // Private fields
     float[] array;
     List<GameObject> mainObjects;
-    public GameObject prefab;
     Stopwatch stopwatch;
 
     void Start()
@@ -27,24 +51,35 @@ public class BubbleSort : MonoBehaviour
         logArray(); // Print initial array state
         spawnObjs(); // Create visual representation
 
-        // SINGLE-THREADED APPROACH (blocks main thread, game freezes)
-        // Uncomment the line below to test single-threaded approach
-        // bubbleSort();
+        // Execute based on Inspector settings
+        if (executionMode == ExecutionMode.SingleThreaded)
+        {
+            // SINGLE-THREADED: Blocks main thread, game freezes
+            UnityEngine.Debug.Log($"Starting {selectedAlgorithm} in SINGLE-THREADED mode (game will freeze)...");
+            RunSelectedAlgorithm();
+        }
+        else
+        {
+            // MULTI-THREADED: Non-blocking, game continues running
+            UnityEngine.Debug.Log($"Starting {selectedAlgorithm} in MULTI-THREADED mode...");
+            Thread sortThread = new Thread(RunSelectedAlgorithm);
+            sortThread.Start();
+        }
 
-        //TO DO 5
-        //Create a new thread using the function "bubbleSort" and start it.
-        // MULTI-THREADED APPROACH (non-blocking, game continues)
+    }
 
-        // Choose which sorting algorithm to use:
-        // Option 1: BubbleSort (O(n²) - slower)
-        Thread sortThread = new Thread(bubbleSort);
-
-        // Option 2: QuickSort (O(n log n) - faster)
-        // Uncomment below and comment BubbleSort to compare
-        // Thread sortThread = new Thread(quickSortWrapper);
-
-        sortThread.Start();
-
+    // Helper method to run the algorithm selected in Inspector
+    void RunSelectedAlgorithm()
+    {
+        switch (selectedAlgorithm)
+        {
+            case SortingAlgorithm.BubbleSort:
+                bubbleSort();
+                break;
+            case SortingAlgorithm.QuickSort:
+                quickSortWrapper();
+                break;
+        }
     }
 
     void Update()
