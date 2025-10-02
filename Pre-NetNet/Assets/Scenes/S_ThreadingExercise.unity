@@ -455,7 +455,7 @@ GameObject:
   - component: {fileID: 1409233708}
   - component: {fileID: 1409233707}
   m_Layer: 0
-  m_Name: BubbleSort
+  m_Name: BubbleOrQuickSort
   m_TagString: Untagged
   m_Icon: {fileID: 5132851093641282708, guid: 0000000000000000d000000000000000, type: 0}
   m_NavMeshLayer: 0
@@ -473,6 +473,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5728979ea97f0664ab75961fb02f6366, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  selectedAlgorithm: 1
+  executionMode: 0
   prefab: {fileID: 8753316343606957907, guid: 6bbf80a746a02d740b9ae325b85026e4, type: 3}
 --- !u!4 &1409233708
 Transform:
