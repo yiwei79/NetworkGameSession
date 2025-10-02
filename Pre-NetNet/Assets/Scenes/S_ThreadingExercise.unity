@@ -473,7 +473,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5728979ea97f0664ab75961fb02f6366, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  selectedAlgorithm: 1
+  selectedAlgorithm: 0
   executionMode: 0
   prefab: {fileID: 8753316343606957907, guid: 6bbf80a746a02d740b9ae325b85026e4, type: 3}
 --- !u!4 &1409233708
