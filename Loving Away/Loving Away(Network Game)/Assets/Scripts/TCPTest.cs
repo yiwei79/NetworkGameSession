@@ -9,6 +9,7 @@ public class TCPTest : MonoBehaviour
     Thread m_clientThread;
 
     private Socket serverSocket;
+    private bool isRunning = true;
 
     void Start()
     {
@@ -16,7 +17,7 @@ public class TCPTest : MonoBehaviour
       m_serverThread = new Thread(ServerProcess);
 
       m_serverThread.Start();
-      m_clientThread.Start();
+      
     }
 
     void ServerProcess()
@@ -26,23 +27,36 @@ public class TCPTest : MonoBehaviour
       serverSocket.Bind(endPoint);
       serverSocket.Listen(10);
       Debug.Log("Server is running on port 9050");
-      
+
+      m_clientThread.Start();
       Socket clientHandler = serverSocket.Accept();
       Debug.Log("Client accepted");
 
       //Recieve message from client
       byte[] buffer = new byte[1024];
-      int bytesRead = clientHandler.Receive(buffer);
-      string message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-      Debug.Log("Client sent message: " + message);
+      while(isRunning)
+      {
+        int bytesRead = clientHandler.Receive(buffer);
 
-      //Send message to client
-      string response = "Message received";
-      byte[] responseBuffer = System.Text.Encoding.UTF8.GetBytes(response);
-      clientHandler.Send(responseBuffer);
-      Debug.Log("Server say Hello Back to Client");
+        if(bytesRead == 0)
+        {
+            Debug.Log("Client disconnected");
+            break;
+        }
 
-      clientHandler.Close();
+        string message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+        Debug.Log("Recived message from client: " + message);
+
+        // Send Response back to client
+        string response = "Message received: " + message;
+        byte[] responseBuffer = System.Text.Encoding.UTF8.GetBytes(response);
+        clientHandler.Send(responseBuffer);
+        Debug.Log("Server say Hello Back to Client");
+
+        Thread.Sleep(1000);
+      }
+      
+    //   clientHandler.Close();
     }
 
     void ClientProcess()
@@ -56,16 +70,30 @@ public class TCPTest : MonoBehaviour
             clientSocket.Connect(serverEndPoint);
             Debug.Log("Client connected to server!");
             
-            // Send a message
-            byte[] message = System.Text.Encoding.UTF8.GetBytes("Hello from client!");
-            clientSocket.Send(message);
-            Debug.Log("Client sent message");
 
-            //Recieve message from server
             byte[] buffer = new byte[1024];
-            int bytesRead = clientSocket.Receive(buffer);
-            string message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-            Debug.Log("Server sent message: " + message);
+            int messageCount = 0;
+            while(isRunning)
+            {
+                messageCount++;
+                string messageToSend = "Message from client: " + messageCount;
+                byte[] messageBuffer = System.Text.Encoding.UTF8.GetBytes(messageToSend);
+                clientSocket.Send(messageBuffer);
+                Debug.Log("Client sent message: " + messageToSend);
+
+                //Receive message from server
+                int bytesRead = clientSocket.Receive(buffer);
+
+                if(bytesRead == 0)
+                {
+                    Debug.Log("Server disconnected");
+                    break;
+                }
+                string receivedMessage = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                Debug.Log("Server sent message: " + receivedMessage);
+
+                Thread.Sleep(1000);
+            }
             
         }
         catch (SocketException e)
@@ -80,6 +108,8 @@ public class TCPTest : MonoBehaviour
 
     void OnApplicationQuit()
     {
+        isRunning = false;
+
         if(serverSocket != null)
         {
             serverSocket.Close();
@@ -94,5 +124,6 @@ public class TCPTest : MonoBehaviour
         {
             m_clientThread.Abort();
         }
+
     }
 }
