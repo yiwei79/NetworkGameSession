@@ -1,0 +1,85 @@
+
+1
+DELIVERABLE 0 – PROJECT PROPOSAL
+Game Name: Loving Away (working title)
+Team: Group G
+Team Members: Yiwei Ye
+GAME CONCEPT
+Loving Away is a multiplayer arena shooter where 2-4 players compete in fast-paced combat.
+The game features a cute, cozy art style inspired by Animal Party, with physics-based movement
+that gives characters a satisfying "weight" and momentum feel.
+Players control characters from a top-down perspective and use a charging mechanic to launch
+projectiles at opponents. The longer you hold the shoot button, the farther your projectile flies.
+When you shoot, your character gets pushed backward slightly. When hit by a projectile, players
+get knocked back significantly, potentially pushing them toward the arena boundaries where
+they can be eliminated.
+The key feature is the "heavy" character movement - players have momentum and inertia, so
+you can't instantly change direction. This creates strategic depth as players must predict where
+opponents will slide to and time their shots carefully.
+GAMEPLAY FEATURES
+• Charge-and-shoot mechanic: hold the button longer to shoot farther with a higher arc
+• Physics-based movement with momentum, sliding, and knockback effects
+• Top-down camera view (angled 20-60 degrees)
+• Arena boundaries that eliminate players who go too far outside
+• Shadow effects showing projectile height for better aiming
+• Cute visual style with projectiles that look like hearts, thumbs up, or other friendly emojis
+NETWORKING RELATED CHARACTERISTICS
+This game is designed specifically to showcase network programming challenges. The real-time
+combat and physics-based movement mean that any network issues will be immediately
+obvious to players:
+Latency (lag): Delayed hit detection will make projectiles miss moving targets. The charging
+mechanic requires precise timing, so input delay will be very frustrating. Knockback effects
+happening late will confuse players about what hit them.
+Jitter (unstable connection): Characters will move in jerky, unpredictable ways. Projectile arcs
+will look wrong. The momentum-based movement will feel broken when updates arrive
+inconsistently.
+Packet Loss: Missing updates will cause characters to suddenly teleport. Projectiles might
+disappear or appear out of nowhere. Hits won't register properly, making the game unfair.
+The game meets the course requirement that network problems must clearly impair gameplay.
+Unlike turn-based games where lag is less noticeable, this real-time competitive game will feel
+terrible with poor network conditions.
+TECHNICAL APPROACH
+Unity Version: 6.2.6f2 (Latest Recommended Support Version)
+The game will use a client-server architecture where one player hosts the game and acts as the
+server. The server is the authority for all game state - it decides where players are, whether
+projectiles hit, and how knockback is applied.
+For the physics-based movement, I'll use a simplified approach instead of Unity's complex
+physics engine. Characters will move using basic math (velocity, acceleration, drag) which is
+easier to synchronize over the network and gives consistent results. This approach still creates
+the "heavy" feel of momentum and sliding, but without the networking headaches of a full
+physics simulation.
+Projectiles follow a simple curved path calculated from the charge amount. The server
+determines the trajectory and clients just need to know the start point, end point, and how high
+it goes to draw the same arc.
+DEVELOPMENT PLAN
+For Mid-Term Demo (November 20):
+• Fully working single-player version with movement, shooting, and knockback (bug-free)
+• Character movement tuned to feel "heavy" and satisfying
+• Basic multiplayer lobby where players can connect
+• Player connection system with username selection
+• Configuration menu for network settings
+• Bonus: Basic synchronization showing that game objects can be sent over the network
+For Final Demo (January 9):
+• Complete multiplayer game supporting 2-4 players over LAN
+• Smooth gameplay with minimal visible lag
+• Lobby system with player management
+• Polished and balanced gameplay
+• Bonus(maybe): Chat functionality in the lobby
+Optional Features (if time permits):
+• Power-up items that appear during matches (like showing the projectile trajectory path)
+• Enhanced visual effects (character leaning into turns, sliding dust particles)
+• Network statistics display for debugging
+PROJECT SCOPE
+This is a fresh project being built from scratch for this course. I am not reusing code or assets
+from previous projects.
+The project scope is designed to be achievable for a solo developer within the semester
+timeline. The simplified physics approach is specifically chosen to be network-friendly and easier
+to debug. The small player count (2-4) keeps the networking manageable. The top-down
+perspective simplifies rendering and camera work. The arena boundaries naturally limit the
+world size.
+By focusing on getting the core gameplay loop working well and stable, then adding networking,
+and finally polishing with mitigation techniques, the project follows a logical progression that
+matches the course structure.
+WHY THIS GAME IS A GOOD CHOICE
+• The simplified physics approach provides the fun "weight" feeling without complex code
+• Small player count (2-4) is realistic for debugging and testing alone
