@@ -76,8 +76,8 @@ public class ServerGameState
     #region Input Processing
     
     /// <summary>
-    /// Processes a client input message and updates player state
-    /// Input processing is immediate (not time-based) - velocity changes happen instantly
+    /// Processes a client input message and stores it for the next physics update
+    /// Inputs are stored immediately but applied during UpdateState with proper deltaTime
     /// </summary>
     public void ProcessInput(ClientInputMessage input)
     {
@@ -91,38 +91,9 @@ public class ServerGameState
         
         PlayerState player = players[input.playerId];
         
-        // Update player based on input direction
-        // Input changes target velocity immediately (not time-based)
-        if (input.moveDirection.magnitude > 0.1f)
-        {
-            // Normalize input to prevent faster diagonal movement
-            Vector2 normalizedInput = input.moveDirection.normalized;
-            Vector3 inputDir3D = new Vector3(normalizedInput.x, 0, normalizedInput.y);
-            
-            // Calculate target velocity
-            Vector3 targetVelocity = inputDir3D * moveSpeed;
-            
-            // Apply velocity change with high acceleration for responsiveness
-            // Process input immediately - high acceleration makes it feel instant
-            float accelStep = acceleration * 0.05f; // Large step for responsiveness (50 units/sec² * 0.05s = 2.5 units/sec per frame)
-            player.velocity = Vector3.MoveTowards(
-                player.velocity,
-                targetVelocity,
-                accelStep
-            );
-        }
-        else
-        {
-            // No input - decelerate to stop (slower deceleration for smooth stopping)
-            float decelStep = acceleration * 0.03f; // Slower deceleration for smooth stop
-            player.velocity = Vector3.MoveTowards(
-                player.velocity,
-                Vector3.zero,
-                decelStep
-            );
-        }
-        
-        // Store shoot button state (for future use)
+        // Store the latest input - it will be applied during UpdateState with proper deltaTime
+        // This prevents input processing from being frame-rate dependent
+        player.currentInput = input.moveDirection;
         player.isShootPressed = input.shootButton;
         
         players[input.playerId] = player;
@@ -154,6 +125,33 @@ public class ServerGameState
             }
             
             PlayerState player = players[playerId];
+            
+            // Apply input to velocity (frame-rate independent)
+            if (player.currentInput.magnitude > 0.1f)
+            {
+                // Player is providing input - accelerate towards target velocity
+                Vector2 normalizedInput = player.currentInput.normalized;
+                Vector3 inputDir3D = new Vector3(normalizedInput.x, 0, normalizedInput.y);
+                Vector3 targetVelocity = inputDir3D * moveSpeed;
+                
+                // Apply acceleration with deltaTime for frame-rate independence
+                float accelStep = acceleration * deltaTime;
+                player.velocity = Vector3.MoveTowards(
+                    player.velocity,
+                    targetVelocity,
+                    accelStep
+                );
+            }
+            else
+            {
+                // No input - decelerate to stop
+                float decelStep = acceleration * deltaTime * 0.6f; // Slightly slower deceleration for smooth stopping
+                player.velocity = Vector3.MoveTowards(
+                    player.velocity,
+                    Vector3.zero,
+                    decelStep
+                );
+            }
             
             // Update position based on velocity (frame-rate independent)
             player.position += player.velocity * deltaTime;
@@ -232,5 +230,6 @@ public struct PlayerState
     public Vector3 position;
     public Vector3 velocity;
     public bool isShootPressed;
+    public Vector2 currentInput; // Latest input from client (stored, applied during UpdateState)
 }
 
