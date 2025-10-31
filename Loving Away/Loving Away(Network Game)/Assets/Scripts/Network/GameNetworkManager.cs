@@ -143,7 +143,10 @@ public class GameNetworkManager : MonoBehaviour
                 
                 if (deltaTime >= tickInterval)
                 {
-                    ServerTick((float)(deltaTime / 1000.0)); // Convert ms to seconds
+                    // Cap deltaTime to prevent huge jumps (max 100ms = 5x normal tick)
+                    float deltaTimeSeconds = (float)(deltaTime / 1000.0);
+                    float clampedDeltaTime = Mathf.Min(deltaTimeSeconds, 0.1f);
+                    ServerTick(clampedDeltaTime);
                     BroadcastState();
                     lastTickTime = currentTime;
                 }

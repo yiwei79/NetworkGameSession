@@ -47,10 +47,11 @@ public class SimplePlayerController : MonoBehaviour
         // Find network manager if not assigned
         if (networkManager == null)
         {
-            networkManager = FindObjectOfType<GameNetworkManager>();
+            // Use FindFirstObjectByType instead of deprecated FindObjectOfType (Unity 2023.1+)
+            networkManager = FindFirstObjectByType<GameNetworkManager>();
             if (networkManager == null)
             {
-                Debug.LogError("[SimplePlayerController] No GameNetworkManager found!");
+                UnityEngine.Debug.LogError("[SimplePlayerController] No GameNetworkManager found!");
                 return;
             }
         }
@@ -63,7 +64,7 @@ public class SimplePlayerController : MonoBehaviour
         
         lastStateUpdateTime = Time.time;
         
-        Debug.Log($"[SimplePlayerController] Initialized for player {localPlayerId}");
+        UnityEngine.Debug.Log($"[SimplePlayerController] Initialized for player {localPlayerId}");
     }
     
     void Update()
@@ -169,7 +170,7 @@ public class SimplePlayerController : MonoBehaviour
     {
         if (playerPrefab == null)
         {
-            Debug.LogError("[SimplePlayerController] Player prefab not assigned!");
+            UnityEngine.Debug.LogError("[SimplePlayerController] Player prefab not assigned!");
             return;
         }
         
@@ -194,7 +195,7 @@ public class SimplePlayerController : MonoBehaviour
         CreateNameTag(playerObj, playerId);
         
         playerObjects[playerId] = playerObj;
-        Debug.Log($"[SimplePlayerController] Created visual for player {playerId}");
+        UnityEngine.Debug.Log($"[SimplePlayerController] Created visual for player {playerId}");
     }
     
     void CreateNameTag(GameObject playerObj, uint playerId)
@@ -244,7 +245,7 @@ public class SimplePlayerController : MonoBehaviour
             {
                 Destroy(playerObjects[playerId]);
                 playerObjects.Remove(playerId);
-                Debug.Log($"[SimplePlayerController] Removed player {playerId}");
+                UnityEngine.Debug.Log($"[SimplePlayerController] Removed player {playerId}");
             }
         }
     }
@@ -267,7 +268,7 @@ public class SimplePlayerController : MonoBehaviour
         // Check if we've lost connection to server
         if (Time.time - lastStateUpdateTime > connectionTimeout)
         {
-            Debug.LogWarning("[SimplePlayerController] Connection timeout! No state updates received.");
+            UnityEngine.Debug.LogWarning("[SimplePlayerController] Connection timeout! No state updates received.");
             // Could show UI message or attempt reconnection here
         }
     }

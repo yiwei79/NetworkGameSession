@@ -209,7 +209,7 @@ public static class Serializer
     {
         if (data == null || data.Length < 1)
         {
-            Debug.LogError("Cannot peek message type from null or empty data");
+            UnityEngine.Debug.LogError("Cannot peek message type from null or empty data");
             return MessageType.ClientInput; // Default fallback
         }
         

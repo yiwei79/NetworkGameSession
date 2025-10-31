@@ -12,11 +12,11 @@ public class ServerGameState
     
     // Game timing
     private float serverTime;
-    private float fixedDeltaTime = 0.05f; // 20 Hz tick rate
     
     // Movement parameters
     private float moveSpeed = 5.0f;
-    private float acceleration = 10.0f;
+    private float acceleration = 50.0f; // Increased for more responsive movement
+    private float maxDeltaTime = 0.1f; // Cap delta time to prevent huge jumps
     
     public ServerGameState()
     {
@@ -77,6 +77,7 @@ public class ServerGameState
     
     /// <summary>
     /// Processes a client input message and updates player state
+    /// Input processing is immediate (not time-based) - velocity changes happen instantly
     /// </summary>
     public void ProcessInput(ClientInputMessage input)
     {
@@ -91,6 +92,7 @@ public class ServerGameState
         PlayerState player = players[input.playerId];
         
         // Update player based on input direction
+        // Input changes target velocity immediately (not time-based)
         if (input.moveDirection.magnitude > 0.1f)
         {
             // Normalize input to prevent faster diagonal movement
@@ -100,20 +102,23 @@ public class ServerGameState
             // Calculate target velocity
             Vector3 targetVelocity = inputDir3D * moveSpeed;
             
-            // Apply acceleration towards target velocity
+            // Apply velocity change with high acceleration for responsiveness
+            // Process input immediately - high acceleration makes it feel instant
+            float accelStep = acceleration * 0.05f; // Large step for responsiveness (50 units/sec² * 0.05s = 2.5 units/sec per frame)
             player.velocity = Vector3.MoveTowards(
                 player.velocity,
                 targetVelocity,
-                acceleration * fixedDeltaTime
+                accelStep
             );
         }
         else
         {
-            // No input - decelerate to stop
+            // No input - decelerate to stop (slower deceleration for smooth stopping)
+            float decelStep = acceleration * 0.03f; // Slower deceleration for smooth stop
             player.velocity = Vector3.MoveTowards(
                 player.velocity,
                 Vector3.zero,
-                acceleration * fixedDeltaTime
+                decelStep
             );
         }
         
@@ -133,6 +138,9 @@ public class ServerGameState
     /// </summary>
     public void UpdateState(float deltaTime)
     {
+        // Cap delta time to prevent huge position jumps
+        deltaTime = Mathf.Min(deltaTime, maxDeltaTime);
+        
         serverTime += deltaTime;
         
         // Create list of keys to avoid modification during enumeration
@@ -147,7 +155,7 @@ public class ServerGameState
             
             PlayerState player = players[playerId];
             
-            // Update position based on velocity
+            // Update position based on velocity (frame-rate independent)
             player.position += player.velocity * deltaTime;
             
             // Apply basic boundary constraints (keep players in arena)
