@@ -1,10 +1,12 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 /// <summary>
 /// Client-side player controller
 /// Collects local input, sends to server via GameNetworkManager
 /// Renders all players based on received server state
+/// Uses new Input System for better control and future gamepad support
 /// </summary>
 public class SimplePlayerController : MonoBehaviour
 {
@@ -76,25 +78,36 @@ public class SimplePlayerController : MonoBehaviour
     
     void CollectInput()
     {
+        // NEW INPUT SYSTEM - Uses Keyboard.current for better control
         // Collect WASD input
         float horizontal = 0f;
         float vertical = 0f;
         
-        if (Input.GetKey(KeyCode.W)) vertical += 1f;
-        if (Input.GetKey(KeyCode.S)) vertical -= 1f;
-        if (Input.GetKey(KeyCode.A)) horizontal -= 1f;
-        if (Input.GetKey(KeyCode.D)) horizontal += 1f;
-        
-        currentInput = new Vector2(horizontal, vertical);
-        
-        // Normalize to prevent faster diagonal movement
-        if (currentInput.magnitude > 1f)
+        var keyboard = Keyboard.current;
+        if (keyboard != null)
         {
-            currentInput.Normalize();
+            if (keyboard.wKey.isPressed) vertical += 1f;
+            if (keyboard.sKey.isPressed) vertical -= 1f;
+            if (keyboard.aKey.isPressed) horizontal -= 1f;
+            if (keyboard.dKey.isPressed) horizontal += 1f;
+            
+            currentInput = new Vector2(horizontal, vertical);
+            
+            // Normalize to prevent faster diagonal movement
+            if (currentInput.magnitude > 1f)
+            {
+                currentInput.Normalize();
+            }
+            
+            // Collect shoot button (Spacebar)
+            shootButtonPressed = keyboard.spaceKey.isPressed;
         }
-        
-        // Collect shoot button (Spacebar)
-        shootButtonPressed = Input.GetKey(KeyCode.Space);
+        else
+        {
+            // No keyboard detected - clear input
+            currentInput = Vector2.zero;
+            shootButtonPressed = false;
+        }
     }
     
     void SendInputToServer()

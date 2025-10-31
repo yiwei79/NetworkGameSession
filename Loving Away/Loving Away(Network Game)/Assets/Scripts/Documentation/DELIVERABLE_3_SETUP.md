@@ -179,7 +179,27 @@ The debug UI displays:
 - Current input values
 - Shoot button state
 
+## Input System Requirement
+
+**IMPORTANT:** This project uses Unity's **New Input System**.
+
+If you get an error about `UnityEngine.Input` when pressing Play:
+
+1. **Install Input System Package:**
+   - Go to `Window > Package Manager`
+   - Search for "Input System"
+   - Click `Install`
+
+2. **Or see detailed instructions:**
+   - Open `Assets/Scripts/INPUT_SYSTEM_SETUP.md`
+
+The code has been updated to use `Keyboard.current` from the new Input System, which is better for future gamepad/mobile support.
+
 ## Troubleshooting
+
+### "InvalidOperationException: You are trying to read Input..."
+- **Solution:** Install Input System package (see above)
+- Or check `INPUT_SYSTEM_SETUP.md` for step-by-step guide
 
 ### "No GameNetworkManager found!"
 - Make sure GameNetworkManager component is attached to a GameObject in the scene
@@ -188,6 +208,7 @@ The debug UI displays:
 - Check that Local Player ID matches between NetworkManager and SimplePlayerController
 - Verify Is Server is checked for host instance
 - Check console for network errors
+- Make sure Input System package is installed
 
 ### Players don't see each other
 - Ensure both instances use same Server Port (9050)
