@@ -41,7 +41,7 @@ public class ServerGameState
             };
             
             players[playerId] = newPlayer;
-            Debug.Log($"[ServerGameState] Added player {playerId} at {newPlayer.position}");
+            UnityEngine.Debug.Log($"[ServerGameState] Added player {playerId} at {newPlayer.position}");
         }
     }
     
@@ -53,7 +53,7 @@ public class ServerGameState
         if (players.ContainsKey(playerId))
         {
             players.Remove(playerId);
-            Debug.Log($"[ServerGameState] Removed player {playerId}");
+            UnityEngine.Debug.Log($"[ServerGameState] Removed player {playerId}");
         }
     }
     
@@ -82,7 +82,9 @@ public class ServerGameState
     {
         if (!players.ContainsKey(input.playerId))
         {
-            Debug.LogWarning($"[ServerGameState] Received input for unknown player {input.playerId}");
+            UnityEngine.Debug.LogWarning($"[ServerGameState] Received input for unknown player {input.playerId}");
+            // Auto-add player if they don't exist (might happen if connection happens before AddPlayer)
+            AddPlayer(input.playerId);
             return;
         }
         
@@ -133,10 +135,17 @@ public class ServerGameState
     {
         serverTime += deltaTime;
         
-        foreach (var kvp in players)
+        // Create list of keys to avoid modification during enumeration
+        List<uint> playerIds = new List<uint>(players.Keys);
+        
+        foreach (uint playerId in playerIds)
         {
-            uint playerId = kvp.Key;
-            PlayerState player = kvp.Value;
+            if (!players.ContainsKey(playerId))
+            {
+                continue; // Player was removed during iteration
+            }
+            
+            PlayerState player = players[playerId];
             
             // Update position based on velocity
             player.position += player.velocity * deltaTime;

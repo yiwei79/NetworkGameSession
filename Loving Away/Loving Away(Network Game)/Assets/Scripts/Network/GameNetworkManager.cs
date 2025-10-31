@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 /// <summary>
 /// Main network manager handling UDP client/server communication
@@ -53,6 +54,10 @@ public class GameNetworkManager : MonoBehaviour
     private int packetsSent = 0;
     private int packetsReceived = 0;
     
+    // Timing for worker threads (thread-safe, not Unity Time)
+    private Stopwatch serverStopwatch;
+    private Stopwatch clientStopwatch;
+    
     void Start()
     {
         // Initialize queues
@@ -65,18 +70,25 @@ public class GameNetworkManager : MonoBehaviour
         // Start network threads
         isRunning = true;
         
+        // Initialize stopwatches for worker thread timing
+        serverStopwatch = new Stopwatch();
+        clientStopwatch = new Stopwatch();
+        
         if (isServer)
         {
             serverGameState = new ServerGameState();
+            // Add local player (ID 0) when server starts
+            serverGameState.AddPlayer(localPlayerId);
+            UnityEngine.Debug.Log($"[GameNetworkManager] Started as SERVER with local player {localPlayerId}");
             serverThread = new Thread(ServerProcess);
             serverThread.Start();
-            Debug.Log("[GameNetworkManager] Started as SERVER");
+            UnityEngine.Debug.Log("[GameNetworkManager] Started as SERVER");
         }
         
         // Always start client thread (server also acts as a client for local player)
         clientThread = new Thread(ClientProcess);
         clientThread.Start();
-        Debug.Log("[GameNetworkManager] Started CLIENT thread");
+            UnityEngine.Debug.Log("[GameNetworkManager] Started CLIENT thread");
     }
     
     void Update()
@@ -99,14 +111,17 @@ public class GameNetworkManager : MonoBehaviour
             serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, serverPort);
             serverSocket.Bind(endPoint);
-            Debug.Log($"[Server] UDP Server listening on port {serverPort}");
+            UnityEngine.Debug.Log($"[Server] UDP Server listening on port {serverPort}");
             
             // Receive buffer
             byte[] buffer = new byte[1024];
             EndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
             
-            float tickInterval = 1f / serverTickRate;
-            float lastTickTime = Time.realtimeSinceStartup;
+            // Start stopwatch for server timing (thread-safe)
+            serverStopwatch.Start();
+            
+            double tickInterval = 1000.0 / serverTickRate; // Convert to milliseconds
+            double lastTickTime = 0;
             
             while (isRunning)
             {
@@ -123,10 +138,12 @@ public class GameNetworkManager : MonoBehaviour
                 }
                 
                 // Server tick - broadcast state at fixed rate
-                float currentTime = Time.realtimeSinceStartup;
-                if (currentTime - lastTickTime >= tickInterval)
+                double currentTime = serverStopwatch.ElapsedMilliseconds;
+                double deltaTime = currentTime - lastTickTime;
+                
+                if (deltaTime >= tickInterval)
                 {
-                    ServerTick(currentTime - lastTickTime);
+                    ServerTick((float)(deltaTime / 1000.0)); // Convert ms to seconds
                     BroadcastState();
                     lastTickTime = currentTime;
                 }
@@ -136,7 +153,7 @@ public class GameNetworkManager : MonoBehaviour
         }
         catch (SocketException e)
         {
-            Debug.LogError($"[Server] Socket error: {e.Message}");
+            UnityEngine.Debug.LogError($"[Server] Socket error: {e.Message}");
         }
         finally
         {
@@ -184,7 +201,7 @@ public class GameNetworkManager : MonoBehaviour
             connectedClients.Add(remoteEndpoint);
             serverGameState.AddPlayer(playerId);
             
-            Debug.Log($"[Server] New client connected: {endpointKey} assigned ID {playerId}");
+            UnityEngine.Debug.Log($"[Server] New client connected: {endpointKey} assigned ID {playerId}");
         }
     }
     
@@ -195,7 +212,8 @@ public class GameNetworkManager : MonoBehaviour
     
     void BroadcastState()
     {
-        if (connectedClients.Count == 0) return;
+        // Don't broadcast if no players in game state
+        if (serverGameState.GetPlayerCount() == 0) return;
         
         PlayerSnapshot[] snapshots = serverGameState.GetPlayerSnapshots();
         ServerStateUpdateMessage stateMsg = new ServerStateUpdateMessage(
@@ -205,18 +223,28 @@ public class GameNetworkManager : MonoBehaviour
         
         byte[] data = Serializer.SerializeServerState(stateMsg);
         
-        // Send to all connected clients
-        foreach (EndPoint client in connectedClients)
+        // If we have connected remote clients, send via UDP
+        if (connectedClients.Count > 0)
         {
-            try
+            foreach (EndPoint client in connectedClients)
             {
-                serverSocket.SendTo(data, client);
-                packetsSent++;
+                try
+                {
+                    serverSocket.SendTo(data, client);
+                    packetsSent++;
+                }
+                catch (SocketException e)
+                {
+                    UnityEngine.Debug.LogError($"[Server] Failed to send to {client}: {e.Message}");
+                }
             }
-            catch (SocketException e)
-            {
-                Debug.LogError($"[Server] Failed to send to {client}: {e.Message}");
-            }
+        }
+        
+        // Even if no remote clients, queue state for local client thread (when running as server+client)
+        // This allows the local player to see their own state updates
+        lock (stateQueueLock)
+        {
+            incomingStateQueue.Enqueue(stateMsg);
         }
     }
     
@@ -247,20 +275,23 @@ public class GameNetworkManager : MonoBehaviour
             clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPEndPoint serverEndpoint = new IPEndPoint(IPAddress.Parse(serverAddress), serverPort);
             
-            Debug.Log($"[Client] Connecting to server at {serverAddress}:{serverPort}");
+            UnityEngine.Debug.Log($"[Client] Connecting to server at {serverAddress}:{serverPort}");
             
             // Send connection request
             ConnectMessage connectMsg = new ConnectMessage(localPlayerId);
             byte[] connectData = Serializer.SerializeConnect(connectMsg);
             clientSocket.SendTo(connectData, serverEndpoint);
-            Debug.Log("[Client] Sent connection request");
+            UnityEngine.Debug.Log("[Client] Sent connection request");
             
             // Receive buffer
             byte[] buffer = new byte[1024];
             EndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
             
-            float sendInterval = 1f / clientSendRate;
-            float lastSendTime = Time.realtimeSinceStartup;
+            // Start stopwatch for client timing (thread-safe)
+            clientStopwatch.Start();
+            
+            double sendInterval = 1000.0 / clientSendRate; // Convert to milliseconds
+            double lastSendTime = 0;
             
             while (isRunning)
             {
@@ -277,8 +308,10 @@ public class GameNetworkManager : MonoBehaviour
                 }
                 
                 // Send queued input messages
-                float currentTime = Time.realtimeSinceStartup;
-                if (currentTime - lastSendTime >= sendInterval)
+                double currentTime = clientStopwatch.ElapsedMilliseconds;
+                double deltaTime = currentTime - lastSendTime;
+                
+                if (deltaTime >= sendInterval)
                 {
                     SendQueuedInputs(serverEndpoint);
                     lastSendTime = currentTime;
@@ -289,7 +322,7 @@ public class GameNetworkManager : MonoBehaviour
         }
         catch (SocketException e)
         {
-            Debug.LogError($"[Client] Socket error: {e.Message}");
+            UnityEngine.Debug.LogError($"[Client] Socket error: {e.Message}");
         }
         finally
         {
@@ -336,7 +369,7 @@ public class GameNetworkManager : MonoBehaviour
                 }
                 catch (SocketException e)
                 {
-                    Debug.LogError($"[Client] Failed to send input: {e.Message}");
+                    UnityEngine.Debug.LogError($"[Client] Failed to send input: {e.Message}");
                 }
             }
         }
@@ -419,7 +452,7 @@ public class GameNetworkManager : MonoBehaviour
             clientThread.Join(1000);
         }
         
-        Debug.Log("[GameNetworkManager] Shutdown complete");
+        UnityEngine.Debug.Log("[GameNetworkManager] Shutdown complete");
     }
 }
 
