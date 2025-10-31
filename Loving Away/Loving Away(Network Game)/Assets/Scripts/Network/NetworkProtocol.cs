@@ -14,19 +14,21 @@ public enum MessageType : byte
 /// <summary>
 /// Client input message sent from client to server
 /// Contains player input commands (WASD movement and shoot button)
-/// Size: 1 + 4 + 8 + 1 = 14 bytes
+/// Size: 1 + 4 + 4 + 8 + 1 = 18 bytes (FIX 3: Added sequenceNumber)
 /// </summary>
 public struct ClientInputMessage
 {
     public MessageType messageType;
     public uint playerId;
+    public uint sequenceNumber;    // FIX 3: Sequence number for tracking inputs
     public Vector2 moveDirection;  // Normalized input vector (x, y)
     public bool shootButton;       // Is shoot button pressed
 
-    public ClientInputMessage(uint playerId, Vector2 moveDirection, bool shootButton)
+    public ClientInputMessage(uint playerId, uint sequenceNumber, Vector2 moveDirection, bool shootButton)
     {
         this.messageType = MessageType.ClientInput;
         this.playerId = playerId;
+        this.sequenceNumber = sequenceNumber;
         this.moveDirection = moveDirection;
         this.shootButton = shootButton;
     }

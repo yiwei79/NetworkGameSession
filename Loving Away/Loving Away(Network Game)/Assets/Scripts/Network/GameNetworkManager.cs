@@ -53,6 +53,9 @@ public class GameNetworkManager : MonoBehaviour
     // Statistics
     private int packetsSent = 0;
     private int packetsReceived = 0;
+
+    // FIX 3: Input sequence tracking
+    private uint inputSequenceNumber = 0;
     
     // Timing for worker threads (thread-safe, not Unity Time)
     private Stopwatch serverStopwatch;
@@ -401,8 +404,11 @@ public class GameNetworkManager : MonoBehaviour
     /// </summary>
     public void SendInput(Vector2 moveDirection, bool shootButton)
     {
-        ClientInputMessage input = new ClientInputMessage(localPlayerId, moveDirection, shootButton);
-        
+        // FIX 3: Assign and increment sequence number
+        uint currentSequence = inputSequenceNumber++;
+
+        ClientInputMessage input = new ClientInputMessage(localPlayerId, currentSequence, moveDirection, shootButton);
+
         lock (outgoingQueueLock)
         {
             outgoingInputQueue.Enqueue(input);
@@ -422,6 +428,17 @@ public class GameNetworkManager : MonoBehaviour
     
     /// <summary>
     /// Gets network statistics for debug display
+    /// FIX 3: Now includes sequence number
+    /// </summary>
+    public void GetNetworkStats(out int sent, out int received, out uint sequence)
+    {
+        sent = packetsSent;
+        received = packetsReceived;
+        sequence = inputSequenceNumber; // FIX 3: Return current sequence number
+    }
+
+    /// <summary>
+    /// Backwards compatibility overload (for existing code that doesn't need sequence)
     /// </summary>
     public void GetNetworkStats(out int sent, out int received)
     {
