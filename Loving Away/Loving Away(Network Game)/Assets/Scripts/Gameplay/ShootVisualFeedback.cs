@@ -71,7 +71,7 @@ public class ShootVisualFeedback : MonoBehaviour
         muzzleFlash = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         muzzleFlash.name = "MuzzleFlash";
         muzzleFlash.transform.SetParent(transform);
-        muzzleFlash.transform.localPosition = new Vector3(0, 0, 0.7f); // In front of player
+        muzzleFlash.transform.localPosition = new Vector3(0, 0, 1.5f); // In front of player
         muzzleFlash.transform.localScale = Vector3.zero;
         
         // Bright white material
