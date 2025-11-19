@@ -194,14 +194,16 @@ CLIENT                          NETWORK (UDP)                    SERVER
 ### Binary Serialization Pattern
 
 ```csharp
-// Write (Serialize)
+// Write (Serialize) - ClientInputMessage: 18 bytes
 using (MemoryStream ms = new MemoryStream())
 using (BinaryWriter writer = new BinaryWriter(ms))
 {
-    writer.Write((byte)messageType);
-    writer.Write(playerId);
-    writer.Write(moveDirection.x);
-    writer.Write(moveDirection.y);
+    writer.Write((byte)messageType);    // 1 byte
+    writer.Write(playerId);             // 4 bytes
+    writer.Write(sequenceNumber);       // 4 bytes (added Nov 2025)
+    writer.Write(moveDirection.x);      // 4 bytes
+    writer.Write(moveDirection.y);      // 4 bytes
+    writer.Write(shootButton);          // 1 byte
     return ms.ToArray();
 }
 
@@ -211,8 +213,10 @@ using (BinaryReader reader = new BinaryReader(ms))
 {
     messageType = (MessageType)reader.ReadByte();
     playerId = reader.ReadUInt32();
+    sequenceNumber = reader.ReadUInt32(); // added Nov 2025
     float x = reader.ReadSingle();
     float y = reader.ReadSingle();
+    shootButton = reader.ReadBoolean();
 }
 ```
 
@@ -246,11 +250,44 @@ Completed lab sessions:
 - 📖 **Lab 4**: NAT concepts (read-only, no code)
 
 Current work:
-- ✅ **Deliverable 3**: Serialization + UDP for 2-player multiplayer (COMPLETE)
+- ✅ **Deliverable 3**: Serialization + UDP for 2-player multiplayer (COMPLETE + ENHANCED)
 
 Next work:
 - ⏳ **Deliverable 4**: World State Replication with interpolation
 - ⏳ **Deliverable 5**: Latency/jitter mitigation (Final Demo)
+
+## Recent Major Fixes (November 2025)
+
+### Input Delay Resolution
+
+After completing Deliverable 3, significant input delay issues were identified and resolved with 3 major architectural improvements (commit `85c77e1`):
+
+#### Fix 1: Input Rate Limiting (30 Hz)
+- **Problem**: Client sent input every frame (60 Hz), server processed at 20 Hz → queue buildup causing cumulative delay
+- **Solution**: Rate-limit input sending to 30 Hz to match server capacity
+- **File**: `SimplePlayerController.cs` - Added `inputSendRate`, `lastInputSendTime`
+- **Impact**: Prevented cumulative delay, reduced bandwidth by 50%, eliminated input over-queuing
+
+#### Fix 2: Client-Side Prediction
+- **Problem**: Local player waited for server round-trip (~50-150ms) before seeing movement → sluggish feel
+- **Solution**: Predict local player movement immediately using same physics as server, reconcile when server updates arrive
+- **File**: `SimplePlayerController.cs` - Added `PredictLocalPlayerMovement()`, `ReconcileWithServerState()`
+- **Impact**: 0ms perceived latency for local player, smooth gameplay, server remains authoritative
+
+#### Fix 3: Sequence Numbers
+- **Problem**: No way to track input ordering, implement reconciliation, or detect packet loss
+- **Solution**: Add sequence number to every input message
+- **Files**: `NetworkProtocol.cs`, `Serializer.cs`, `GameNetworkManager.cs`
+- **Change**: ClientInputMessage: **14 bytes → 18 bytes** (added `uint sequenceNumber`)
+- **Impact**: Foundation for Phase 4 server reconciliation, visible in debug UI
+
+**Status:** All fixes implemented and working. See `Docs/Deliverable 3/INPUT_DELAY_FIXES.md` for complete details.
+
+**Current Phase Status:**
+- Officially: Deliverable 3 (Serialization) - COMPLETE ✅
+- Actually: Between Phase 2 & Phase 4 of Technical Implementation Plan
+- Completed: Basic networking (Phase 2) + Client-side prediction (Phase 4 partial)
+- In Progress: Full gameplay sync (Phase 3 - movement done, projectiles pending)
 
 ## Working with "Loving Away" Project
 
