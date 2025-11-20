@@ -40,11 +40,13 @@ public class GameNetworkManager : MonoBehaviour
     private Queue<ClientInputMessage> incomingInputQueue;
     private Queue<ServerStateUpdateMessage> incomingStateQueue;
     private Queue<ClientInputMessage> outgoingInputQueue;
+    private Queue<ProjectileSpawnMessage> incomingProjectileQueue;
     
     // Locks for thread safety
     private object inputQueueLock = new object();
     private object stateQueueLock = new object();
     private object outgoingQueueLock = new object();
+    private object projectileQueueLock = new object();
     
     // Connection tracking
     private Dictionary<string, uint> endpointToPlayerId;
@@ -67,6 +69,7 @@ public class GameNetworkManager : MonoBehaviour
         incomingInputQueue = new Queue<ClientInputMessage>();
         incomingStateQueue = new Queue<ServerStateUpdateMessage>();
         outgoingInputQueue = new Queue<ClientInputMessage>();
+        incomingProjectileQueue = new Queue<ProjectileSpawnMessage>();
         connectedClients = new List<EndPoint>();
         endpointToPlayerId = new Dictionary<string, uint>();
         
@@ -220,15 +223,15 @@ public class GameNetworkManager : MonoBehaviour
     {
         // Don't broadcast if no players in game state
         if (serverGameState.GetPlayerCount() == 0) return;
-        
+
         PlayerSnapshot[] snapshots = serverGameState.GetPlayerSnapshots();
         ServerStateUpdateMessage stateMsg = new ServerStateUpdateMessage(
             serverGameState.GetServerTime(),
             snapshots
         );
-        
+
         byte[] data = Serializer.SerializeServerState(stateMsg);
-        
+
         // If we have connected remote clients, send via UDP
         if (connectedClients.Count > 0)
         {
@@ -245,12 +248,50 @@ public class GameNetworkManager : MonoBehaviour
                 }
             }
         }
-        
+
         // Even if no remote clients, queue state for local client thread (when running as server+client)
         // This allows the local player to see their own state updates
         lock (stateQueueLock)
         {
             incomingStateQueue.Enqueue(stateMsg);
+        }
+
+        // Broadcast pending projectile spawns
+        BroadcastProjectileSpawns();
+    }
+
+    void BroadcastProjectileSpawns()
+    {
+        ProjectileSpawnMessage[] spawns = serverGameState.GetPendingProjectileSpawns();
+
+        if (spawns.Length == 0) return;
+
+        foreach (ProjectileSpawnMessage spawnMsg in spawns)
+        {
+            byte[] data = Serializer.SerializeProjectileSpawn(spawnMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send projectile spawn to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see projectiles)
+            lock (projectileQueueLock)
+            {
+                incomingProjectileQueue.Enqueue(spawnMsg);
+            }
         }
     }
     
@@ -344,18 +385,30 @@ public class GameNetworkManager : MonoBehaviour
         // Copy buffer to prevent overwriting
         byte[] data = new byte[bytesRead];
         System.Array.Copy(buffer, data, bytesRead);
-        
+
         MessageType msgType = Serializer.PeekMessageType(data);
-        
-        if (msgType == MessageType.ServerStateUpdate)
+
+        switch (msgType)
         {
-            ServerStateUpdateMessage stateMsg = Serializer.DeserializeServerState(data);
-            
-            // Queue for main thread processing
-            lock (stateQueueLock)
-            {
-                incomingStateQueue.Enqueue(stateMsg);
-            }
+            case MessageType.ServerStateUpdate:
+                ServerStateUpdateMessage stateMsg = Serializer.DeserializeServerState(data);
+
+                // Queue for main thread processing
+                lock (stateQueueLock)
+                {
+                    incomingStateQueue.Enqueue(stateMsg);
+                }
+                break;
+
+            case MessageType.ProjectileSpawn:
+                ProjectileSpawnMessage projectileMsg = Serializer.DeserializeProjectileSpawn(data);
+
+                // Queue for main thread processing
+                lock (projectileQueueLock)
+                {
+                    incomingProjectileQueue.Enqueue(projectileMsg);
+                }
+                break;
         }
     }
     
@@ -393,6 +446,17 @@ public class GameNetworkManager : MonoBehaviour
                 BroadcastStateUpdate(stateMsg);
             }
         }
+
+        // Process incoming projectile spawns on main thread
+        lock (projectileQueueLock)
+        {
+            while (incomingProjectileQueue.Count > 0)
+            {
+                ProjectileSpawnMessage projectileMsg = incomingProjectileQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastProjectileSpawn(projectileMsg);
+            }
+        }
     }
     
     #endregion
@@ -420,10 +484,21 @@ public class GameNetworkManager : MonoBehaviour
     /// </summary>
     public delegate void StateUpdateHandler(ServerStateUpdateMessage stateMsg);
     public event StateUpdateHandler OnStateUpdate;
-    
+
     private void BroadcastStateUpdate(ServerStateUpdateMessage stateMsg)
     {
         OnStateUpdate?.Invoke(stateMsg);
+    }
+
+    /// <summary>
+    /// Event for projectile spawns received from server
+    /// </summary>
+    public delegate void ProjectileSpawnHandler(ProjectileSpawnMessage spawnMsg);
+    public event ProjectileSpawnHandler OnProjectileSpawn;
+
+    private void BroadcastProjectileSpawn(ProjectileSpawnMessage spawnMsg)
+    {
+        OnProjectileSpawn?.Invoke(spawnMsg);
     }
     
     /// <summary>

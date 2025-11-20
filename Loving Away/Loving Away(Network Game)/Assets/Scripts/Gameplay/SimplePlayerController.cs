@@ -13,6 +13,7 @@ public class SimplePlayerController : MonoBehaviour
     [Header("References")]
     public GameNetworkManager networkManager;
     public GameObject playerPrefab;
+    public GameObject projectilePrefab; // Optional: if null, creates dynamically
     
     [Header("Local Player Settings")]
     public uint localPlayerId = 0;
@@ -27,6 +28,9 @@ public class SimplePlayerController : MonoBehaviour
     // Player GameObjects (visual representation)
     private Dictionary<uint, GameObject> playerObjects;
     private Dictionary<uint, ShootVisualFeedback> playerVisualFeedback;
+
+    // Projectile GameObjects
+    private Dictionary<uint, GameObject> projectileObjects;
     
     // Input state
     private Vector2 currentInput;
@@ -64,7 +68,8 @@ public class SimplePlayerController : MonoBehaviour
     {
         playerObjects = new Dictionary<uint, GameObject>();
         playerVisualFeedback = new Dictionary<uint, ShootVisualFeedback>();
-        
+        projectileObjects = new Dictionary<uint, GameObject>();
+
         // Find network manager if not assigned
         if (networkManager == null)
         {
@@ -76,15 +81,16 @@ public class SimplePlayerController : MonoBehaviour
                 return;
             }
         }
-        
+
         // Set local player ID from network manager
         localPlayerId = networkManager.localPlayerId;
-        
-        // Subscribe to state updates from network manager
+
+        // Subscribe to network events
         networkManager.OnStateUpdate += HandleStateUpdate;
-        
+        networkManager.OnProjectileSpawn += HandleProjectileSpawn;
+
         lastStateUpdateTime = Time.time;
-        
+
         UnityEngine.Debug.Log($"[SimplePlayerController] Initialized for player {localPlayerId}");
     }
     
@@ -403,7 +409,39 @@ public class SimplePlayerController : MonoBehaviour
             }
         }
     }
-    
+
+    void HandleProjectileSpawn(ProjectileSpawnMessage spawnMsg)
+    {
+        // Create projectile GameObject
+        GameObject projectileObj;
+
+        if (projectilePrefab != null)
+        {
+            // Use assigned prefab
+            projectileObj = Instantiate(projectilePrefab);
+        }
+        else
+        {
+            // Create empty GameObject for projectile
+            projectileObj = new GameObject($"Projectile_{spawnMsg.projectileId}");
+        }
+
+        // Add Projectile component and initialize
+        Projectile projectile = projectileObj.GetComponent<Projectile>();
+        if (projectile == null)
+        {
+            projectile = projectileObj.AddComponent<Projectile>();
+        }
+
+        // Initialize with spawn message data
+        projectile.Initialize(spawnMsg);
+
+        // Track the projectile
+        projectileObjects[spawnMsg.projectileId] = projectileObj;
+
+        UnityEngine.Debug.Log($"[SimplePlayerController] Spawned projectile {spawnMsg.projectileId} from player {spawnMsg.ownerId}");
+    }
+
     #endregion
     
     #region Visual Feedback & Connection Management

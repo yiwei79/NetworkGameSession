@@ -201,6 +201,75 @@ public static class Serializer
 
     #endregion
 
+    #region ProjectileSpawnMessage Serialization
+
+    /// <summary>
+    /// Serializes a ProjectileSpawnMessage to byte array
+    /// Format: [1 byte: type][4 bytes: projectileId][4 bytes: ownerId][12 bytes: startPosition][12 bytes: velocity][4 bytes: spawnTime]
+    /// Total: 37 bytes
+    /// </summary>
+    public static byte[] SerializeProjectileSpawn(ProjectileSpawnMessage msg)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms))
+            {
+                writer.Write((byte)msg.messageType);
+                writer.Write(msg.projectileId);
+                writer.Write(msg.ownerId);
+
+                // Start position (Vector3 = 3 floats)
+                writer.Write(msg.startPosition.x);
+                writer.Write(msg.startPosition.y);
+                writer.Write(msg.startPosition.z);
+
+                // Velocity (Vector3 = 3 floats)
+                writer.Write(msg.velocity.x);
+                writer.Write(msg.velocity.y);
+                writer.Write(msg.velocity.z);
+
+                writer.Write(msg.spawnTime);
+
+                return ms.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deserializes byte array to ProjectileSpawnMessage
+    /// </summary>
+    public static ProjectileSpawnMessage DeserializeProjectileSpawn(byte[] data)
+    {
+        using (MemoryStream ms = new MemoryStream(data))
+        {
+            using (BinaryReader reader = new BinaryReader(ms))
+            {
+                ProjectileSpawnMessage msg = new ProjectileSpawnMessage();
+                msg.messageType = (MessageType)reader.ReadByte();
+                msg.projectileId = reader.ReadUInt32();
+                msg.ownerId = reader.ReadUInt32();
+
+                // Start position
+                float startX = reader.ReadSingle();
+                float startY = reader.ReadSingle();
+                float startZ = reader.ReadSingle();
+                msg.startPosition = new Vector3(startX, startY, startZ);
+
+                // Velocity
+                float velX = reader.ReadSingle();
+                float velY = reader.ReadSingle();
+                float velZ = reader.ReadSingle();
+                msg.velocity = new Vector3(velX, velY, velZ);
+
+                msg.spawnTime = reader.ReadSingle();
+
+                return msg;
+            }
+        }
+    }
+
+    #endregion
+
     #region Utility Methods
 
     /// <summary>
@@ -214,7 +283,7 @@ public static class Serializer
             UnityEngine.Debug.LogError("Cannot peek message type from null or empty data");
             return MessageType.ClientInput; // Default fallback
         }
-        
+
         return (MessageType)data[0];
     }
 

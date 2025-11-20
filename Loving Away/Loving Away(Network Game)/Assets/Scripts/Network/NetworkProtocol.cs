@@ -89,3 +89,28 @@ public struct ConnectMessage
     }
 }
 
+/// <summary>
+/// Projectile spawn message sent from server to clients
+/// Contains all data needed to spawn and simulate a projectile
+/// Size: 1 + 4 + 4 + 12 + 12 + 4 = 37 bytes
+/// </summary>
+public struct ProjectileSpawnMessage
+{
+    public MessageType messageType;
+    public uint projectileId;      // Unique ID for this projectile
+    public uint ownerId;            // Player who fired the projectile
+    public Vector3 startPosition;   // Launch position
+    public Vector3 velocity;        // Initial velocity vector
+    public float spawnTime;         // Server time when spawned (for interpolation)
+
+    public ProjectileSpawnMessage(uint projectileId, uint ownerId, Vector3 startPosition, Vector3 velocity, float spawnTime)
+    {
+        this.messageType = MessageType.ProjectileSpawn;
+        this.projectileId = projectileId;
+        this.ownerId = ownerId;
+        this.startPosition = startPosition;
+        this.velocity = velocity;
+        this.spawnTime = spawnTime;
+    }
+}
+

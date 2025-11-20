@@ -9,19 +9,29 @@ public class ServerGameState
 {
     // Player state storage
     private Dictionary<uint, PlayerState> players;
-    
+
     // Game timing
     private float serverTime;
-    
+
     // Movement parameters
     private float moveSpeed = 5.0f;
     private float acceleration = 50.0f; // Increased for more responsive movement
     private float maxDeltaTime = 0.1f; // Cap delta time to prevent huge jumps
+
+    // Projectile system
+    private Queue<ProjectileSpawnMessage> pendingProjectileSpawns;
+    private uint nextProjectileId = 1;
+    private float projectileCooldown = 0.5f; // 0.5 seconds between shots
+    private Dictionary<uint, float> lastShootTime; // Track last shoot time per player
+    private float projectileSpeed = 15.0f; // Units per second
+    private float projectileHeight = 2.0f; // Launch height above player
     
     public ServerGameState()
     {
         players = new Dictionary<uint, PlayerState>();
         serverTime = 0f;
+        pendingProjectileSpawns = new Queue<ProjectileSpawnMessage>();
+        lastShootTime = new Dictionary<uint, float>();
     }
     
     #region Player Management
@@ -171,13 +181,94 @@ public class ServerGameState
             
             // Keep player at ground level
             player.position.y = 0.5f;
-            
+
+            // Handle shooting
+            if (player.isShootPressed)
+            {
+                // Check cooldown
+                float timeSinceLastShot = serverTime - GetLastShootTime(playerId);
+                if (timeSinceLastShot >= projectileCooldown)
+                {
+                    SpawnProjectile(playerId, player.position, player.velocity);
+                    lastShootTime[playerId] = serverTime;
+                }
+            }
+
             players[playerId] = player;
         }
     }
     
     #endregion
-    
+
+    #region Projectile System
+
+    /// <summary>
+    /// Spawns a projectile from a player
+    /// </summary>
+    private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 playerVelocity)
+    {
+        uint projectileId = nextProjectileId++;
+
+        // Calculate launch position (above player)
+        Vector3 startPosition = playerPosition + new Vector3(0, projectileHeight, 0);
+
+        // Calculate projectile velocity
+        // Use player's movement direction, or forward if stationary
+        Vector3 shootDirection;
+        if (playerVelocity.magnitude > 0.1f)
+        {
+            // Shoot in movement direction
+            shootDirection = playerVelocity.normalized;
+        }
+        else
+        {
+            // If player is stationary, shoot forward (positive Z)
+            shootDirection = new Vector3(0, 0, 1);
+        }
+
+        // Set projectile velocity (horizontal movement)
+        Vector3 projectileVelocity = shootDirection * projectileSpeed;
+
+        // Create spawn message
+        ProjectileSpawnMessage spawnMsg = new ProjectileSpawnMessage(
+            projectileId,
+            playerId,
+            startPosition,
+            projectileVelocity,
+            serverTime
+        );
+
+        // Queue for broadcasting
+        pendingProjectileSpawns.Enqueue(spawnMsg);
+
+        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition}");
+    }
+
+    /// <summary>
+    /// Gets the last shoot time for a player (returns 0 if never shot)
+    /// </summary>
+    private float GetLastShootTime(uint playerId)
+    {
+        if (lastShootTime.ContainsKey(playerId))
+        {
+            return lastShootTime[playerId];
+        }
+        return 0f;
+    }
+
+    /// <summary>
+    /// Gets all pending projectile spawns and clears the queue
+    /// Called by GameNetworkManager to broadcast spawns to clients
+    /// </summary>
+    public ProjectileSpawnMessage[] GetPendingProjectileSpawns()
+    {
+        ProjectileSpawnMessage[] spawns = pendingProjectileSpawns.ToArray();
+        pendingProjectileSpawns.Clear();
+        return spawns;
+    }
+
+    #endregion
+
     #region State Query
     
     /// <summary>
