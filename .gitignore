@@ -80,3 +80,5 @@ crashlytics-build.properties
 
 # IDE workspace files
 *.code-workspace
+/.claude
+CLAUDE.md

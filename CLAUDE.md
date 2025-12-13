@@ -2,365 +2,338 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Quick Start for New Sessions
+
+```
+/session-start
+```
+
+This command loads project context and shows current status. See [Agentic Workflow System](#agentic-workflow-system) below.
+
+---
+
 ## Project Overview
 
-This is a **Unity educational project** for learning network game programming concepts. The repository contains:
+**"Loving Away"** is a 2-4 player multiplayer physics-based arena shooter built as an educational project for learning network game programming. Players compete in a circular arena using a charge-and-shoot mechanic with momentum-based movement.
 
-1. **Lab Sessions** - Completed foundational exercises (Threading, TCP/UDP, Serialization)
-2. **Final Project "Loving Away"** - Multiplayer physics-based arena shooter (in progress)
+| Attribute | Value |
+|-----------|-------|
+| Unity Version | 6000.2.6f1 (Unity 6) |
+| Platform | macOS (Darwin) / Windows |
+| Input System | New Input System (`UnityEngine.InputSystem`) |
+| Network Model | Server-authoritative, UDP, passive replication |
+| Max Players | 4 |
 
-**Current Status**: Deliverable 3 (Serialization) - COMPLETE ✅  
-**Unity Version**: 6000.2.6f1 (Unity 6)  
-**Platform**: macOS (Darwin)  
-**Input System**: New Input System (UnityEngine.InputSystem)
+### Current Status
+
+> **See [PROJECT_STATUS.md](Docs/Workflow/PROJECT_STATUS.md) for real-time progress**
+
+| Deliverable | Status | Notes |
+|-------------|--------|-------|
+| Deliverable 3 | ✅ Complete | Serialization + Input delay fixes |
+| **Deliverable 4** | ⏳ In Progress | World State Replication |
+| Deliverable 5 | ❌ Not Started | Final Demo |
+
+| Phase | Status | Progress |
+|-------|--------|----------|
+| Phase 1-2 | ✅ Complete | Movement, UDP networking |
+| **Phase 3** | ⏳ In Progress | Projectiles (35% done) |
+| Phase 4 | ⏳ Partial | Prediction done, interpolation pending |
+
+---
+
+## Agentic Workflow System
+
+This project uses **Claude Code slash commands** for structured development sessions.
+
+### Available Commands
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/session-start` | Load context, show status | Start of any session |
+| `/status` | Quick progress check | Anytime |
+| `/plan` | Create session plan | Before implementation |
+| `/implement` | Execute session plan | After plan approved |
+| `/document` | Update documentation | After implementation |
+| `/test` | Validate implementation | After implementation |
+| `/session-end` | Back-propagate context | End of session |
+
+### Workflow Pattern
+
+```
+/session-start  →  /plan  →  /implement  →  /test  →  /document  →  /session-end
+```
+
+### Back-Propagation Mechanism
+
+Every `/session-end` updates:
+1. `Docs/Workflow/PROJECT_STATUS.md` - Phase progress, next steps
+2. `Docs/Deliverable X/SESSION_X_SUMMARY.md` - Session handoff document
+3. This file (CLAUDE.md) - Only when new patterns established
+
+**Result:** Any future session can run `/session-start` and immediately understand project state.
+
+### Workflow Files Location
+
+```
+.claude/commands/           # Slash command definitions
+Docs/Workflow/
+├── PROJECT_STATUS.md       # Living status (updated each session)
+├── CONTEXT_CHECKLIST.md    # What new sessions should read
+```
+
+---
 
 ## Project Structure
 
 ```
 NetworkGameSession/
-├── Docs/                          # All documentation organized here
-│   ├── Lab Session 1/             # Threading lab materials
-│   ├── Lab Session 2 TCP:UDP/     # Networking basics
-│   ├── Lab Session 3/             # Serialization exercises
-│   ├── Lab Session 4/             # NAT concepts
-│   ├── Deliverable 3/             # ⭐ AI-GENERATED DOCS (READ HERE)
-│   │   ├── README.md              # Documentation index
-│   │   ├── DELIVERABLE_3_README.md  # Quick start
-│   │   ├── DELIVERABLE_3_SETUP.md   # Unity scene setup
-│   │   ├── TESTING_GUIDE.md       # Testing & troubleshooting
-│   │   ├── INPUT_SYSTEM_SETUP.md  # New Input System guide
-│   │   └── DELIVERABLE_3_SUMMARY.md # Technical details
-│   ├── Final Project/             # Project proposal & plan
-│   │   ├── Technical_Implementation_Plan.md
-│   │   └── Yiwei_Ye_Deliverable_0_Project_Proposal
-│   └── LAB_SESSION_*_SUMMARY.md   # Lab summaries
+├── .claude/commands/              # ⭐ SLASH COMMANDS
+│   ├── session-start.md
+│   ├── session-end.md
+│   ├── plan.md
+│   ├── implement.md
+│   ├── document.md
+│   ├── test.md
+│   └── status.md
 │
-├── Pre-NetNet/                    # Lab 1: Threading project
-│   └── Assets/Scripts/BubbleSort.cs
+├── Docs/
+│   ├── Workflow/                  # ⭐ AGENTIC WORKFLOW
+│   │   ├── PROJECT_STATUS.md      # Real-time progress
+│   │   └── CONTEXT_CHECKLIST.md   # New session guide
+│   │
+│   ├── Deliverable 3/             # Serialization (COMPLETE)
+│   │   ├── INPUT_DELAY_FIXES.md   # Phase 4 early work
+│   │   └── [other docs]
+│   │
+│   ├── Deliverable 4/             # World State Replication (IN PROGRESS)
+│   │   └── SESSION_1_SUMMARY.md   # Projectile foundation
+│   │
+│   ├── Final Project/
+│   │   └── Technical_Implementation_Plan.md
+│   │
+│   └── Materials/                 # Course PDFs (Lab 6, 7, 8)
 │
-└── Loving Away/                   # ⭐ MAIN PROJECT (Final Project)
-    └── Loving Away(Network Game)/
-        └── Assets/
-            └── Scripts/
-                ├── Network/       # UDP networking & serialization
-                │   ├── NetworkProtocol.cs
-                │   ├── Serializer.cs
-                │   └── GameNetworkManager.cs
-                ├── Gameplay/      # Game logic & player control
-                │   ├── ServerGameState.cs
-                │   ├── SimplePlayerController.cs
-                │   └── ShootVisualFeedback.cs
-                ├── TCPTest.cs     # Lab 2: TCP example
-                └── UDPTest.cs     # Lab 2: UDP example
+├── Loving Away/                   # ⭐ MAIN GAME PROJECT
+│   └── Loving Away(Network Game)/
+│       └── Assets/Scripts/
+│           ├── Network/
+│           │   ├── NetworkProtocol.cs     # Message structs
+│           │   ├── Serializer.cs          # Binary serialization
+│           │   └── GameNetworkManager.cs  # UDP networking
+│           │
+│           └── Gameplay/
+│               ├── ServerGameState.cs         # Server logic (NOT MonoBehaviour)
+│               ├── SimplePlayerController.cs  # Client input & rendering
+│               ├── Projectile.cs              # Projectile behavior (NEW)
+│               └── ShootVisualFeedback.cs     # Visual effects
+│
+└── CLAUDE.md                      # This file (master context)
 ```
 
-**IMPORTANT**: All AI-generated documentation is in `Docs/Deliverable 3/`. Start there for setup and testing guides.
+---
 
-## Critical Unity-Specific Constraints
+## Critical Constraints
 
-### Thread Safety Rules
-1. **Never call Unity API from worker threads**: `Instantiate()`, `Destroy()`, `transform`, `GameObject`, any `Component` methods will crash
-2. **Safe for worker threads**: Pure C# data structures (arrays, lists), math operations, file I/O, network operations
-3. **Pattern in this codebase**: Worker thread modifies data (float array), main thread reads data and updates Unity objects in `Update()`
+### Thread Safety (CRITICAL)
+
+| Thread Type | Allowed | Forbidden |
+|-------------|---------|-----------|
+| Worker threads (`ServerProcess`, `ClientProcess`) | Socket ops, BinaryWriter, Queue with locks, pure C# | Unity API (`Instantiate`, `Destroy`, `transform`, `Time.deltaTime`) |
+| Main thread (`Update`, event handlers) | Everything | - |
+
+**Pattern:** Worker thread queues data → Main thread processes queue in `Update()`
 
 ### Namespace Conflicts
-- `System.Diagnostics.Debug` conflicts with `UnityEngine.Debug`
-- Always use `UnityEngine.Debug.Log()` explicitly when `System.Diagnostics` is imported
-- Required because we use `System.Diagnostics.Stopwatch` for performance timing
-
-## Key Architecture Pattern: Computation-Visualization Split
-
-The `BubbleSort.cs` script demonstrates the fundamental threading pattern for Unity:
-
-```
-[Worker Thread]          [Shared Memory]          [Main Thread/Update()]
-bubbleSort()       --->  float[] array      <---  updateHeights()
-quickSort()              (write-only)             (read + Unity API calls)
-```
-
-**Why this works without locks:**
-- Only ONE thread writes (worker)
-- Main thread only reads
-- No write-write or read-write conflicts
-- Float operations are atomic in C#
-
-## Working with BubbleSort.cs
-
-### Inspector-Exposed Fields
-- `public GameObject prefab` - Must be assigned to Cube Green or Cube Red prefab before running
-
-### Testing Configurations
-
-**Multi-threaded BubbleSort (default):**
-```csharp
-Thread sortThread = new Thread(bubbleSort);
-```
-
-**Multi-threaded QuickSort (faster):**
-```csharp
-// Comment line 39, uncomment:
-Thread sortThread = new Thread(quickSortWrapper);
-```
-
-**Single-threaded (freezing demo):**
-```csharp
-// Uncomment line 31, comment lines 39-45
-bubbleSort();  // Blocks main thread
-```
-
-### Performance Expectations
-- **BubbleSort**: 10-30 seconds for 30,000 elements (O(n²))
-- **QuickSort**: 50-500ms for 30,000 elements (O(n log n))
-- Game maintains 60 FPS during threaded operations
-
-## Common Development Workflow
-
-### Testing in Unity
-1. Open `Pre-NetNet/Assets/Scenes/S_ThreadingExercise.unity`
-2. Select GameObject with BubbleSort component
-3. Assign prefab in Inspector
-4. Press Play
-5. Check Console for timing logs
-
-### Modifying Threading Code
-When editing threading logic:
-- Worker thread methods: `bubbleSort()`, `quickSortWrapper()`, `quickSort()`, `partition()`
-- Main thread methods: `Update()`, `updateHeights()`, `spawnObjs()`
-- Shared data: `float[] array`, `List<GameObject> mainObjects`
-
-### Adding New Sorting Algorithms
-1. Create method with signature: `void MySort()` (no parameters, returns void)
-2. Add timing with `stopwatch.Start()` and `stopwatch.Stop()`
-3. Log with `UnityEngine.Debug.Log()`
-4. Create thread: `Thread sortThread = new Thread(MySort);`
-5. Start thread: `sortThread.Start();`
-
-## Deliverable 3: Serialization (Current Work)
-
-### What's Implemented
-
-A 2-player multiplayer demo using UDP networking with binary serialization:
-- **Network Protocol**: Custom binary message format (14-byte ClientInput, 34-byte ServerState)
-- **Serialization**: BinaryWriter/BinaryReader for efficient packet transmission
-- **Server-Authoritative**: Server owns all game state, clients send input commands
-- **Threading**: Separate worker threads for network I/O, main thread for Unity API
-- **Visual Feedback**: Charging mechanic with sphere indicators and muzzle flash
-
-### Documentation Location
-
-**All setup and testing guides are in `Docs/Deliverable 3/`** - Read these files:
-1. `DELIVERABLE_3_README.md` - Start here for quick overview
-2. `DELIVERABLE_3_SETUP.md` - Unity scene setup instructions
-3. `TESTING_GUIDE.md` - Testing procedures and troubleshooting
-4. `INPUT_SYSTEM_SETUP.md` - New Input System requirements
-
-### Key Architecture: Client-Server with Binary Serialization
-
-```
-CLIENT                          NETWORK (UDP)                    SERVER
-┌──────────────────┐                                    ┌──────────────────┐
-│ SimplePlayer     │   ClientInputMessage (14 bytes)    │ GameNetwork      │
-│ Controller       │ ──────────────────────────────────>│ Manager          │
-│ - Collects WASD  │                                    │ - Receives input │
-│ - Spacebar input │                                    │ - Queues for     │
-└──────────────────┘                                    │   main thread    │
-         ↓                                               └─────────┬────────┘
-┌──────────────────┐                                             ↓
-│ GameNetwork      │                                    ┌──────────────────┐
-│ Manager          │                                    │ ServerGameState  │
-│ - Serializes     │                                    │ - Processes input│
-│   with Binary    │                                    │ - Updates physics│
-│   Writer (14B)   │                                    │ - 20 Hz tick rate│
-│ - Sends UDP      │                                    └─────────┬────────┘
-└──────────────────┘                                             ↓
-         ↑                                               ┌──────────────────┐
-┌──────────────────┐   ServerStateUpdate (34 bytes)    │ GameNetwork      │
-│ SimplePlayer     │ <──────────────────────────────────│ Manager          │
-│ Controller       │                                    │ - Creates        │
-│ - Deserializes   │                                    │   snapshots      │
-│ - Renders players│                                    │ - Serializes     │
-│ - Updates visuals│                                    │ - Broadcasts     │
-└──────────────────┘                                    └──────────────────┘
-```
-
-## Critical Patterns & Constraints
-
-### Unity Thread Safety (Still Applies)
-
-1. **Never call Unity API from worker threads**: `Instantiate()`, `Destroy()`, `transform`, etc. will crash
-2. **Safe for worker threads**: Socket operations, BinaryWriter/BinaryReader, data structures
-3. **Pattern used**: Worker threads handle network I/O, main thread handles Unity API via queues
-
-### Binary Serialization Pattern
 
 ```csharp
-// Write (Serialize) - ClientInputMessage: 18 bytes
-using (MemoryStream ms = new MemoryStream())
-using (BinaryWriter writer = new BinaryWriter(ms))
-{
-    writer.Write((byte)messageType);    // 1 byte
-    writer.Write(playerId);             // 4 bytes
-    writer.Write(sequenceNumber);       // 4 bytes (added Nov 2025)
-    writer.Write(moveDirection.x);      // 4 bytes
-    writer.Write(moveDirection.y);      // 4 bytes
-    writer.Write(shootButton);          // 1 byte
-    return ms.ToArray();
-}
-
-// Read (Deserialize)
-using (MemoryStream ms = new MemoryStream(data))
-using (BinaryReader reader = new BinaryReader(ms))
-{
-    messageType = (MessageType)reader.ReadByte();
-    playerId = reader.ReadUInt32();
-    sequenceNumber = reader.ReadUInt32(); // added Nov 2025
-    float x = reader.ReadSingle();
-    float y = reader.ReadSingle();
-    shootButton = reader.ReadBoolean();
-}
+using System.Diagnostics;  // Has Debug class - conflicts with Unity
+// Always use:
+UnityEngine.Debug.Log("message");  // NOT Debug.Log()
 ```
 
-### Input System (NEW!)
-
-This project uses **Unity's New Input System** (not legacy Input Manager):
+### Input System
 
 ```csharp
 using UnityEngine.InputSystem;
 
-// Correct way to read input:
+// Correct:
 var keyboard = Keyboard.current;
-if (keyboard != null)
-{
-    if (keyboard.wKey.isPressed) vertical += 1f;
-    // ...
-}
+if (keyboard.wKey.isPressed) { }
 
-// OLD WAY (don't use):
-// if (Input.GetKey(KeyCode.W)) // ❌ Will error
+// Wrong (old system):
+// Input.GetKey(KeyCode.W)  // ❌ Will error
 ```
 
-**Why**: Better for gamepad support, rebindable controls, and future mobile/multiplayer features.
+---
 
-## Lab Session Context
+## Network Architecture
 
-Completed lab sessions:
-- ✅ **Lab 1**: Threading fundamentals (BubbleSort.cs visualization)
-- ✅ **Lab 2**: TCP/UDP networking (TCPTest.cs, UDPTest.cs)
-- ✅ **Lab 3**: Serialization basics (binary, JSON, XML)
-- 📖 **Lab 4**: NAT concepts (read-only, no code)
+### Message Protocol
 
-Current work:
-- ✅ **Deliverable 3**: Serialization + UDP for 2-player multiplayer (COMPLETE + ENHANCED)
+| Message | Size | Direction | Purpose |
+|---------|------|-----------|---------|
+| ClientInputMessage | 18 bytes | Client → Server | WASD + shoot + sequence |
+| ServerStateUpdateMessage | 6 + 28n bytes | Server → Clients | Player positions |
+| ProjectileSpawnMessage | 37 bytes | Server → Clients | Projectile creation |
+| ConnectMessage | 5 bytes | Client → Server | Initial connection |
 
-Next work:
-- ⏳ **Deliverable 4**: World State Replication with interpolation
-- ⏳ **Deliverable 5**: Latency/jitter mitigation (Final Demo)
+### Timing
 
-## Recent Major Fixes (November 2025)
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Server Tick Rate | 20 Hz | 50ms per tick |
+| Client Send Rate | 30 Hz | Rate-limited (was 60Hz) |
+| State Broadcast | 20 Hz | Every server tick |
 
-### Input Delay Resolution
+### Data Flow
 
-After completing Deliverable 3, significant input delay issues were identified and resolved with 3 major architectural improvements (commit `85c77e1`):
+```
+[PLAYER INPUT]
+      ↓
+SimplePlayerController.CollectInput()
+      ↓
+ClientInputMessage (18 bytes, UDP)
+      ↓
+GameNetworkManager.HandleServerReceive()
+      ↓
+ServerGameState.ProcessInput() + UpdateState()
+      ↓
+ServerStateUpdateMessage (62 bytes for 2 players)
+      ↓
+SimplePlayerController.HandleStateUpdate()
+      ↓
+[RENDER PLAYERS]
+```
 
-#### Fix 1: Input Rate Limiting (30 Hz)
-- **Problem**: Client sent input every frame (60 Hz), server processed at 20 Hz → queue buildup causing cumulative delay
-- **Solution**: Rate-limit input sending to 30 Hz to match server capacity
-- **File**: `SimplePlayerController.cs` - Added `inputSendRate`, `lastInputSendTime`
-- **Impact**: Prevented cumulative delay, reduced bandwidth by 50%, eliminated input over-queuing
+---
 
-#### Fix 2: Client-Side Prediction
-- **Problem**: Local player waited for server round-trip (~50-150ms) before seeing movement → sluggish feel
-- **Solution**: Predict local player movement immediately using same physics as server, reconcile when server updates arrive
-- **File**: `SimplePlayerController.cs` - Added `PredictLocalPlayerMovement()`, `ReconcileWithServerState()`
-- **Impact**: 0ms perceived latency for local player, smooth gameplay, server remains authoritative
+## Code Patterns
 
-#### Fix 3: Sequence Numbers
-- **Problem**: No way to track input ordering, implement reconciliation, or detect packet loss
-- **Solution**: Add sequence number to every input message
-- **Files**: `NetworkProtocol.cs`, `Serializer.cs`, `GameNetworkManager.cs`
-- **Change**: ClientInputMessage: **14 bytes → 18 bytes** (added `uint sequenceNumber`)
-- **Impact**: Foundation for Phase 4 server reconciliation, visible in debug UI
+### Adding New Network Messages
 
-**Status:** All fixes implemented and working. See `Docs/Deliverable 3/INPUT_DELAY_FIXES.md` for complete details.
+1. **Protocol:** Add enum value to `NetworkProtocol.cs` → `MessageType`
+2. **Struct:** Create struct with constructor setting `messageType`
+3. **Serialization:** Add `Serialize/Deserialize` methods to `Serializer.cs`
+4. **Handler:** Add case to `HandleServerReceive()` or `HandleClientReceive()`
+5. **Event:** Add delegate + event if clients need to react
 
-**Current Phase Status:**
-- Officially: Deliverable 3 (Serialization) - COMPLETE ✅
-- Actually: Between Phase 2 & Phase 4 of Technical Implementation Plan
-- Completed: Basic networking (Phase 2) + Client-side prediction (Phase 4 partial)
-- In Progress: Full gameplay sync (Phase 3 - movement done, projectiles pending)
-
-## Working with "Loving Away" Project
-
-### Main Scripts
-
-**Network Layer** (`Assets/Scripts/Network/`):
-- `NetworkProtocol.cs` - Message definitions (structs, enums)
-- `Serializer.cs` - Binary serialization utilities
-- `GameNetworkManager.cs` - UDP client/server, threading, MonoBehaviour component
-
-**Gameplay Layer** (`Assets/Scripts/Gameplay/`):
-- `ServerGameState.cs` - Server-side game logic (NOT a MonoBehaviour)
-- `SimplePlayerController.cs` - Client-side input & rendering (MonoBehaviour)
-- `ShootVisualFeedback.cs` - Visual effects (MonoBehaviour, added dynamically)
-
-### Common Edits
-
-**Adding new network messages:**
-1. Define struct in `NetworkProtocol.cs`
-2. Add serialize/deserialize methods in `Serializer.cs`
-3. Add case in `GameNetworkManager.HandleServerReceive()` or `HandleClientReceive()`
-
-**Modifying movement:**
-1. Server-side: Edit `ServerGameState.ProcessInput()` or `UpdateState()`
-2. Client-side: Edit `SimplePlayerController.CollectInput()`
-
-**Adding visual effects:**
-1. Create new component like `ShootVisualFeedback.cs`
-2. Attach in `SimplePlayerController.CreatePlayerObject()`
-
-### Testing Workflow
-
-1. **Single instance**: Unity Editor with "Is Server" checked
-2. **Two players**: Unity Editor (server) + Built executable (client)
-3. **See**: `Docs/Deliverable 3/TESTING_GUIDE.md` for detailed procedures
-
-### Namespace Conflicts to Watch
+### Binary Serialization Pattern
 
 ```csharp
-// Still applies from Lab 1:
-using System.Diagnostics;  // Has Debug class
-// ...
-UnityEngine.Debug.Log("Use fully qualified name");
+// Serialize
+public static byte[] SerializeX(XMessage msg)
+{
+    using (MemoryStream ms = new MemoryStream())
+    using (BinaryWriter writer = new BinaryWriter(ms))
+    {
+        writer.Write((byte)msg.messageType);
+        writer.Write(msg.field1);
+        // ... more fields
+        return ms.ToArray();
+    }
+}
 
-// New in Deliverable 3:
-using UnityEngine.InputSystem;  // Keyboard class
-// Don't use: Input.GetKey() - that's the old system
+// Deserialize
+public static XMessage DeserializeX(byte[] data)
+{
+    using (MemoryStream ms = new MemoryStream(data))
+    using (BinaryReader reader = new BinaryReader(ms))
+    {
+        XMessage msg = new XMessage();
+        msg.messageType = (MessageType)reader.ReadByte();
+        msg.field1 = reader.ReadXXX();
+        return msg;
+    }
+}
 ```
 
-## Git Workflow & Documentation
+---
 
-### Documentation Organization
+## Phase Implementation Details
 
-**All AI-generated documentation is in `Docs/Deliverable 3/`** to keep code folders clean.
+### Phase 3: Projectile System (In Progress)
 
-When creating new documentation:
-- Lab summaries → `Docs/`
-- Deliverable docs → `Docs/Deliverable X/`
-- Project-wide guides → Root or `Docs/`
+**Completed:**
+- ✅ ProjectileSpawnMessage protocol (37 bytes)
+- ✅ Binary serialization for projectiles
+- ✅ Server spawning (0.5s cooldown, direction-based)
+- ✅ Client rendering (linear trajectory, 2s lifetime)
 
-### What NOT to Commit
+**Pending:**
+- ❌ Arc trajectory (parametric curve)
+- ❌ Hit detection
+- ❌ Knockback
 
-Unity automatically generates `.meta` files - these are tracked by git.
-Large files in `Library/` and `Temp/` are gitignored automatically.
+### Phase 4: Optimization (Partial)
 
-## Next Steps
+**Completed:**
+- ✅ Client-side prediction (local player)
+- ✅ Sequence numbers (foundation for reconciliation)
+- ✅ Input rate limiting (30Hz)
 
-**For continuing development:**
-1. Read `Docs/Final Project/Technical_Implementation_Plan.md` - Complete roadmap
-2. Current phase: Phase 2 complete (basic networking)
-3. Next phase: Phase 3 (full gameplay sync with projectiles)
+**Pending:**
+- ❌ Interpolation buffer
+- ❌ Remote player interpolation
+- ❌ Server reconciliation
+- ❌ Lag compensation
 
-**For testing current deliverable:**
-1. Read `Docs/Deliverable 3/DELIVERABLE_3_README.md`
-2. Follow `DELIVERABLE_3_SETUP.md` to create Unity scene
-3. Use `TESTING_GUIDE.md` for testing procedures
+---
+
+## Course Materials Integration
+
+| Lab | Concepts | Applied In |
+|-----|----------|------------|
+| Lab 6 | ClientProxy pattern, Ping/Pong | GameNetworkManager connection |
+| Lab 7 | Passive replication, ReplicationManager | ServerStateUpdate broadcast |
+| Lab 8 | ACK system, sequence numbers | ClientInputMessage.sequenceNumber |
+
+---
+
+## Known Deviations from Original Plan
+
+| Deviation | Reason | Impact |
+|-----------|--------|--------|
+| Client input 30Hz (not 60Hz) | Prevent server queue buildup | 50% bandwidth reduction |
+| Phase 4 tasks done early | Needed for playable Deliverable 3 | Phase 3/4 interleaved |
+| No Unity physics engine | Simpler network sync | Custom kinematic formulas |
+
+---
+
+## Quick Reference
+
+### File Locations
+
+| Component | File |
+|-----------|------|
+| Message structs | `Assets/Scripts/Network/NetworkProtocol.cs` |
+| Serialization | `Assets/Scripts/Network/Serializer.cs` |
+| Network I/O | `Assets/Scripts/Network/GameNetworkManager.cs` |
+| Server logic | `Assets/Scripts/Gameplay/ServerGameState.cs` |
+| Client logic | `Assets/Scripts/Gameplay/SimplePlayerController.cs` |
+| Projectile | `Assets/Scripts/Gameplay/Projectile.cs` |
+
+### Testing
+
+1. **Single player:** Unity Editor with `Is Server = true`
+2. **Two players:** Editor (server) + Built executable (client)
+3. **Full test guide:** `Docs/Deliverable 3/TESTING_GUIDE.md`
+
+---
+
+## Context for New Sessions
+
+When starting a new Claude Code session:
+
+1. Run `/session-start` (loads context automatically)
+2. Or manually read:
+   - `Docs/Workflow/PROJECT_STATUS.md` (current phase)
+   - Latest `SESSION_X_SUMMARY.md` (previous session context)
+
+**See:** `Docs/Workflow/CONTEXT_CHECKLIST.md` for full reading list.
+
+---
+
+*Last Updated: 2025-11-20 | Last Session: Phase4-Session1 (Projectile Foundation)*

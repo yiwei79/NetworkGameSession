@@ -8,7 +8,8 @@ public enum MessageType : byte
     ClientInput = 1,
     ServerStateUpdate = 2,
     Connect = 3,
-    Disconnect = 4
+    Disconnect = 4,
+    ProjectileSpawn = 5
 }
 
 /// <summary>
