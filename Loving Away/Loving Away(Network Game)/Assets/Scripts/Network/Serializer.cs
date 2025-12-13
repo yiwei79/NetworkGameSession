@@ -205,8 +205,8 @@ public static class Serializer
 
     /// <summary>
     /// Serializes a ProjectileSpawnMessage to byte array
-    /// Format: [1 byte: type][4 bytes: projectileId][4 bytes: ownerId][12 bytes: startPosition][12 bytes: velocity][4 bytes: spawnTime]
-    /// Total: 37 bytes
+    /// Format: [1 byte: type][4 bytes: projectileId][4 bytes: ownerId][12 bytes: startPosition][12 bytes: velocity][12 bytes: targetPosition][4 bytes: arcHeight][4 bytes: flightTime]
+    /// Total: 53 bytes
     /// </summary>
     public static byte[] SerializeProjectileSpawn(ProjectileSpawnMessage msg)
     {
@@ -228,7 +228,14 @@ public static class Serializer
                 writer.Write(msg.velocity.y);
                 writer.Write(msg.velocity.z);
 
-                writer.Write(msg.spawnTime);
+                // Target position (Vector3 = 3 floats)
+                writer.Write(msg.targetPosition.x);
+                writer.Write(msg.targetPosition.y);
+                writer.Write(msg.targetPosition.z);
+
+                // Arc parameters
+                writer.Write(msg.arcHeight);
+                writer.Write(msg.flightTime);
 
                 return ms.ToArray();
             }
@@ -261,7 +268,15 @@ public static class Serializer
                 float velZ = reader.ReadSingle();
                 msg.velocity = new Vector3(velX, velY, velZ);
 
-                msg.spawnTime = reader.ReadSingle();
+                // Target position
+                float targetX = reader.ReadSingle();
+                float targetY = reader.ReadSingle();
+                float targetZ = reader.ReadSingle();
+                msg.targetPosition = new Vector3(targetX, targetY, targetZ);
+
+                // Arc parameters
+                msg.arcHeight = reader.ReadSingle();
+                msg.flightTime = reader.ReadSingle();
 
                 return msg;
             }

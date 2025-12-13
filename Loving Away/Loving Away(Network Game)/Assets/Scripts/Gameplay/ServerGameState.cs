@@ -25,6 +25,8 @@ public class ServerGameState
     private Dictionary<uint, float> lastShootTime; // Track last shoot time per player
     private float projectileSpeed = 15.0f; // Units per second
     private float projectileHeight = 2.0f; // Launch height above player
+    private float projectileRange = 10.0f; // How far projectiles travel horizontally
+    private float projectileArcHeight = 3.0f; // Peak height of arc trajectory
     
     public ServerGameState()
     {
@@ -203,7 +205,7 @@ public class ServerGameState
     #region Projectile System
 
     /// <summary>
-    /// Spawns a projectile from a player
+    /// Spawns a projectile from a player with arc trajectory
     /// </summary>
     private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 playerVelocity)
     {
@@ -212,13 +214,13 @@ public class ServerGameState
         // Calculate launch position (above player)
         Vector3 startPosition = playerPosition + new Vector3(0, projectileHeight, 0);
 
-        // Calculate projectile velocity
+        // Calculate projectile direction
         // Use player's movement direction, or forward if stationary
         Vector3 shootDirection;
         if (playerVelocity.magnitude > 0.1f)
         {
-            // Shoot in movement direction
-            shootDirection = playerVelocity.normalized;
+            // Shoot in movement direction (horizontal only)
+            shootDirection = new Vector3(playerVelocity.x, 0, playerVelocity.z).normalized;
         }
         else
         {
@@ -226,22 +228,31 @@ public class ServerGameState
             shootDirection = new Vector3(0, 0, 1);
         }
 
-        // Set projectile velocity (horizontal movement)
+        // Calculate target position (where projectile lands)
+        Vector3 targetPosition = playerPosition + shootDirection * projectileRange;
+        targetPosition.y = 0.5f; // Land at ground level
+
+        // Calculate flight time based on range and speed
+        float flightTime = projectileRange / projectileSpeed;
+
+        // Set projectile velocity (for direction reference, arc uses targetPosition)
         Vector3 projectileVelocity = shootDirection * projectileSpeed;
 
-        // Create spawn message
+        // Create spawn message with arc parameters
         ProjectileSpawnMessage spawnMsg = new ProjectileSpawnMessage(
             projectileId,
             playerId,
             startPosition,
             projectileVelocity,
-            serverTime
+            targetPosition,
+            projectileArcHeight,
+            flightTime
         );
 
         // Queue for broadcasting
         pendingProjectileSpawns.Enqueue(spawnMsg);
 
-        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition}");
+        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition} -> {targetPosition} (arc height: {projectileArcHeight})");
     }
 
     /// <summary>
