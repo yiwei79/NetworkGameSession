@@ -22,6 +22,10 @@ public class GameNetworkManager : MonoBehaviour
     [Header("Client Settings")]
     public float clientSendRate = 30f; // Hz (33ms per input)
     public uint localPlayerId = 0;
+
+    [Header("Dual Local Player Testing")]
+    public bool enableSecondLocalPlayer = false;
+    public uint secondLocalPlayerId = 1;
     
     // Threading
     private Thread serverThread;
@@ -86,6 +90,14 @@ public class GameNetworkManager : MonoBehaviour
             // Add local player (ID 0) when server starts
             serverGameState.AddPlayer(localPlayerId);
             UnityEngine.Debug.Log($"[GameNetworkManager] Started as SERVER with local player {localPlayerId}");
+
+            // Add second local player if enabled (for testing)
+            if (enableSecondLocalPlayer)
+            {
+                serverGameState.AddPlayer(secondLocalPlayerId);
+                UnityEngine.Debug.Log($"[GameNetworkManager] Added second local player {secondLocalPlayerId} for testing");
+            }
+
             serverThread = new Thread(ServerProcess);
             serverThread.Start();
             UnityEngine.Debug.Log("[GameNetworkManager] Started as SERVER");
@@ -468,10 +480,19 @@ public class GameNetworkManager : MonoBehaviour
     /// </summary>
     public void SendInput(Vector2 moveDirection, bool shootButton)
     {
+        SendInputForPlayer(localPlayerId, moveDirection, shootButton);
+    }
+
+    /// <summary>
+    /// Sends client input for a specific player to the server
+    /// Used for dual local player testing mode
+    /// </summary>
+    public void SendInputForPlayer(uint playerId, Vector2 moveDirection, bool shootButton)
+    {
         // FIX 3: Assign and increment sequence number
         uint currentSequence = inputSequenceNumber++;
 
-        ClientInputMessage input = new ClientInputMessage(localPlayerId, currentSequence, moveDirection, shootButton);
+        ClientInputMessage input = new ClientInputMessage(playerId, currentSequence, moveDirection, shootButton);
 
         lock (outgoingQueueLock)
         {

@@ -21,7 +21,12 @@ public class SimplePlayerController : MonoBehaviour
     
     [Header("Remote Player Settings")]
     public Color remotePlayerColor = Color.red;
-    
+
+    [Header("Second Local Player (Testing)")]
+    public bool enableSecondLocalPlayer = false;
+    public uint secondLocalPlayerId = 1;
+    public Color secondLocalPlayerColor = Color.blue;
+
     [Header("Debug UI")]
     public bool showDebugUI = true;
     
@@ -32,9 +37,13 @@ public class SimplePlayerController : MonoBehaviour
     // Projectile GameObjects
     private Dictionary<uint, GameObject> projectileObjects;
     
-    // Input state
+    // Input state (Player 1: WASD + Space)
     private Vector2 currentInput;
     private bool shootButtonPressed;
+
+    // Second player input state (Player 2: Arrow Keys + Right Shift)
+    private Vector2 secondPlayerInput;
+    private bool secondPlayerShootPressed;
 
     // Input rate limiting (FIX 1: Prevent input over-queuing)
     [Header("Network Settings")]
@@ -55,6 +64,11 @@ public class SimplePlayerController : MonoBehaviour
     private Vector3 predictedVelocity = Vector3.zero;
     private Vector3 predictedPosition = Vector3.zero;
     private bool hasInitializedPrediction = false;
+
+    // Second local player prediction state
+    private Vector3 secondPredictedVelocity = Vector3.zero;
+    private Vector3 secondPredictedPosition = Vector3.zero;
+    private bool hasInitializedSecondPrediction = false;
 
     // Network stats
     private int packetsSent;
@@ -85,6 +99,10 @@ public class SimplePlayerController : MonoBehaviour
         // Set local player ID from network manager
         localPlayerId = networkManager.localPlayerId;
 
+        // Sync second local player settings from network manager
+        enableSecondLocalPlayer = networkManager.enableSecondLocalPlayer;
+        secondLocalPlayerId = networkManager.secondLocalPlayerId;
+
         // Subscribe to network events
         networkManager.OnStateUpdate += HandleStateUpdate;
         networkManager.OnProjectileSpawn += HandleProjectileSpawn;
@@ -92,6 +110,10 @@ public class SimplePlayerController : MonoBehaviour
         lastStateUpdateTime = Time.time;
 
         UnityEngine.Debug.Log($"[SimplePlayerController] Initialized for player {localPlayerId}");
+        if (enableSecondLocalPlayer)
+        {
+            UnityEngine.Debug.Log($"[SimplePlayerController] Second local player enabled: {secondLocalPlayerId}");
+        }
     }
     
     void Update()
@@ -103,6 +125,12 @@ public class SimplePlayerController : MonoBehaviour
         if (enablePrediction)
         {
             PredictLocalPlayerMovement();
+
+            // Also predict second local player if enabled
+            if (enableSecondLocalPlayer)
+            {
+                PredictSecondPlayerMovement();
+            }
         }
 
         UpdateVisualFeedback();
@@ -114,34 +142,60 @@ public class SimplePlayerController : MonoBehaviour
     void CollectInput()
     {
         // NEW INPUT SYSTEM - Uses Keyboard.current for better control
-        // Collect WASD input
-        float horizontal = 0f;
-        float vertical = 0f;
-        
         var keyboard = Keyboard.current;
+
         if (keyboard != null)
         {
-            if (keyboard.wKey.isPressed) vertical += 1f;
-            if (keyboard.sKey.isPressed) vertical -= 1f;
-            if (keyboard.aKey.isPressed) horizontal -= 1f;
-            if (keyboard.dKey.isPressed) horizontal += 1f;
-            
-            currentInput = new Vector2(horizontal, vertical);
-            
+            // ===== PLAYER 1: WASD + Space =====
+            float horizontal1 = 0f;
+            float vertical1 = 0f;
+
+            if (keyboard.wKey.isPressed) vertical1 += 1f;
+            if (keyboard.sKey.isPressed) vertical1 -= 1f;
+            if (keyboard.aKey.isPressed) horizontal1 -= 1f;
+            if (keyboard.dKey.isPressed) horizontal1 += 1f;
+
+            currentInput = new Vector2(horizontal1, vertical1);
+
             // Normalize to prevent faster diagonal movement
             if (currentInput.magnitude > 1f)
             {
                 currentInput.Normalize();
             }
-            
+
             // Collect shoot button (Spacebar)
             shootButtonPressed = keyboard.spaceKey.isPressed;
+
+            // ===== PLAYER 2: Arrow Keys + Right Shift =====
+            if (enableSecondLocalPlayer)
+            {
+                float horizontal2 = 0f;
+                float vertical2 = 0f;
+
+                if (keyboard.upArrowKey.isPressed) vertical2 += 1f;
+                if (keyboard.downArrowKey.isPressed) vertical2 -= 1f;
+                if (keyboard.leftArrowKey.isPressed) horizontal2 -= 1f;
+                if (keyboard.rightArrowKey.isPressed) horizontal2 += 1f;
+
+                secondPlayerInput = new Vector2(horizontal2, vertical2);
+
+                // Normalize to prevent faster diagonal movement
+                if (secondPlayerInput.magnitude > 1f)
+                {
+                    secondPlayerInput.Normalize();
+                }
+
+                // Collect shoot button (Right Shift)
+                secondPlayerShootPressed = keyboard.rightShiftKey.isPressed;
+            }
         }
         else
         {
             // No keyboard detected - clear input
             currentInput = Vector2.zero;
             shootButtonPressed = false;
+            secondPlayerInput = Vector2.zero;
+            secondPlayerShootPressed = false;
         }
     }
     
@@ -154,8 +208,15 @@ public class SimplePlayerController : MonoBehaviour
 
         if (timeSinceLastSend >= sendInterval)
         {
-            // Send input to network manager
+            // Send Player 1 input to network manager
             networkManager.SendInput(currentInput, shootButtonPressed);
+
+            // Send Player 2 input if enabled
+            if (enableSecondLocalPlayer)
+            {
+                networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed);
+            }
+
             lastInputSendTime = Time.time;
         }
     }
@@ -234,8 +295,81 @@ public class SimplePlayerController : MonoBehaviour
         localPlayerObj.transform.position = predictedPosition;
     }
 
+    void PredictSecondPlayerMovement()
+    {
+        // Client-side prediction for second local player
+        // Mirror of PredictLocalPlayerMovement() but for player 2
+
+        // Check if second player object exists
+        if (!playerObjects.ContainsKey(secondLocalPlayerId))
+        {
+            return; // Second player not spawned yet
+        }
+
+        GameObject secondPlayerObj = playerObjects[secondLocalPlayerId];
+        if (secondPlayerObj == null)
+        {
+            return;
+        }
+
+        // Initialize prediction from current server position (first frame only)
+        if (!hasInitializedSecondPrediction)
+        {
+            secondPredictedPosition = secondPlayerObj.transform.position;
+            secondPredictedVelocity = Vector3.zero;
+            hasInitializedSecondPrediction = true;
+        }
+
+        // Apply the same movement logic as server
+        float deltaTime = Time.deltaTime;
+
+        if (secondPlayerInput.magnitude > 0.1f)
+        {
+            // Player is providing input - accelerate towards target velocity
+            Vector2 normalizedInput = secondPlayerInput.normalized;
+            Vector3 inputDir3D = new Vector3(normalizedInput.x, 0, normalizedInput.y);
+            Vector3 targetVelocity = inputDir3D * moveSpeed;
+
+            // Apply acceleration with deltaTime for frame-rate independence
+            float accelStep = acceleration * deltaTime;
+            secondPredictedVelocity = Vector3.MoveTowards(
+                secondPredictedVelocity,
+                targetVelocity,
+                accelStep
+            );
+        }
+        else
+        {
+            // No input - decelerate to stop
+            float decelStep = acceleration * deltaTime * 0.6f;
+            secondPredictedVelocity = Vector3.MoveTowards(
+                secondPredictedVelocity,
+                Vector3.zero,
+                decelStep
+            );
+        }
+
+        // Update predicted position based on velocity
+        secondPredictedPosition += secondPredictedVelocity * deltaTime;
+
+        // Apply arena boundary constraints (same as server)
+        Vector3 positionXZ = new Vector3(secondPredictedPosition.x, 0, secondPredictedPosition.z);
+        if (positionXZ.magnitude > arenaRadius)
+        {
+            // Push back inside arena
+            positionXZ = positionXZ.normalized * arenaRadius;
+            secondPredictedPosition = new Vector3(positionXZ.x, secondPredictedPosition.y, positionXZ.z);
+
+            // Reduce velocity when hitting boundary
+            secondPredictedVelocity *= 0.5f;
+        }
+
+        // Apply predicted position to visual (instant response!)
+        secondPlayerObj.transform.position = secondPredictedPosition;
+    }
+
     #endregion
-    
+
     #region State Update Handling
     
     void HandleStateUpdate(ServerStateUpdateMessage stateMsg)
@@ -266,14 +400,19 @@ public class SimplePlayerController : MonoBehaviour
         GameObject playerObj = playerObjects[snapshot.playerId];
         if (playerObj != null)
         {
-            // FIX 2: Different handling for local vs remote players
-            bool isLocalPlayer = (snapshot.playerId == localPlayerId);
+            // Different handling for local players vs remote players
+            bool isFirstLocalPlayer = (snapshot.playerId == localPlayerId);
+            bool isSecondLocalPlayer = enableSecondLocalPlayer && (snapshot.playerId == secondLocalPlayerId);
 
-            if (isLocalPlayer && enablePrediction)
+            if (isFirstLocalPlayer && enablePrediction)
             {
-                // Local player: Reconcile prediction with server state
-                // Smoothly blend predicted position towards server's authoritative position
+                // First local player: Reconcile prediction with server state
                 ReconcileWithServerState(snapshot);
+            }
+            else if (isSecondLocalPlayer && enablePrediction)
+            {
+                // Second local player: Reconcile prediction with server state
+                ReconcileSecondPlayerWithServerState(snapshot);
             }
             else
             {
@@ -325,7 +464,32 @@ public class SimplePlayerController : MonoBehaviour
         // Note: In Phase 4, this will use input buffering + timestamp-based reconciliation
         // For now, simple blending is sufficient for Deliverable 3
     }
-    
+
+    void ReconcileSecondPlayerWithServerState(PlayerSnapshot serverSnapshot)
+    {
+        // Reconciliation for second local player - mirror of ReconcileWithServerState
+
+        Vector3 serverPosition = serverSnapshot.position;
+        float positionError = Vector3.Distance(secondPredictedPosition, serverPosition);
+
+        float snapThreshold = 2.0f;
+
+        if (positionError > snapThreshold)
+        {
+            // Large error - snap to server immediately
+            secondPredictedPosition = serverPosition;
+            secondPredictedVelocity = serverSnapshot.velocity;
+            UnityEngine.Debug.LogWarning($"[Prediction] Player 2 large error ({positionError:F2}m) - snapping to server");
+        }
+        else
+        {
+            // Small error - smoothly blend
+            float blendFactor = predictionBlendSpeed * Time.deltaTime;
+            secondPredictedPosition = Vector3.Lerp(secondPredictedPosition, serverPosition, blendFactor);
+            secondPredictedVelocity = Vector3.Lerp(secondPredictedVelocity, serverSnapshot.velocity, blendFactor);
+        }
+    }
+
     void CreatePlayerObject(uint playerId)
     {
         if (playerPrefab == null)
@@ -333,13 +497,25 @@ public class SimplePlayerController : MonoBehaviour
             UnityEngine.Debug.LogError("[SimplePlayerController] Player prefab not assigned!");
             return;
         }
-        
+
         GameObject playerObj = Instantiate(playerPrefab);
         playerObj.name = $"Player_{playerId}";
-        
-        // Set color based on whether it's local or remote player
+
+        // Set color based on player type (first local, second local, or remote)
         Renderer renderer = playerObj.GetComponent<Renderer>();
-        Color playerColor = (playerId == localPlayerId) ? localPlayerColor : remotePlayerColor;
+        Color playerColor;
+        if (playerId == localPlayerId)
+        {
+            playerColor = localPlayerColor;
+        }
+        else if (enableSecondLocalPlayer && playerId == secondLocalPlayerId)
+        {
+            playerColor = secondLocalPlayerColor;
+        }
+        else
+        {
+            playerColor = remotePlayerColor;
+        }
         if (renderer != null)
         {
             renderer.material.color = playerColor;
@@ -363,14 +539,29 @@ public class SimplePlayerController : MonoBehaviour
         GameObject nameTagObj = new GameObject("NameTag");
         nameTagObj.transform.SetParent(playerObj.transform);
         nameTagObj.transform.localPosition = new Vector3(0, 1.5f, 0);
-        
+
         TextMesh textMesh = nameTagObj.AddComponent<TextMesh>();
-        textMesh.text = (playerId == localPlayerId) ? "You" : $"Player {playerId}";
         textMesh.fontSize = 20;
         textMesh.characterSize = 0.1f;
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;
-        textMesh.color = (playerId == localPlayerId) ? localPlayerColor : remotePlayerColor;
+
+        // Set name and color based on player type
+        if (playerId == localPlayerId)
+        {
+            textMesh.text = "P1 (WASD)";
+            textMesh.color = localPlayerColor;
+        }
+        else if (enableSecondLocalPlayer && playerId == secondLocalPlayerId)
+        {
+            textMesh.text = "P2 (Arrows)";
+            textMesh.color = secondLocalPlayerColor;
+        }
+        else
+        {
+            textMesh.text = $"Player {playerId}";
+            textMesh.color = remotePlayerColor;
+        }
     }
     
     void RemoveDisconnectedPlayers(ServerStateUpdateMessage stateMsg)
@@ -448,10 +639,16 @@ public class SimplePlayerController : MonoBehaviour
     
     void UpdateVisualFeedback()
     {
-        // Update local player's visual feedback based on shoot button
+        // Update first local player's visual feedback based on shoot button
         if (playerVisualFeedback.ContainsKey(localPlayerId))
         {
             playerVisualFeedback[localPlayerId].UpdateFeedback(shootButtonPressed);
+        }
+
+        // Update second local player's visual feedback if enabled
+        if (enableSecondLocalPlayer && playerVisualFeedback.ContainsKey(secondLocalPlayerId))
+        {
+            playerVisualFeedback[secondLocalPlayerId].UpdateFeedback(secondPlayerShootPressed);
         }
     }
     
@@ -505,31 +702,49 @@ public class SimplePlayerController : MonoBehaviour
         
         // Stats
         GUILayout.BeginVertical(GUI.skin.box);
-        GUILayout.Label($"Local Player ID: {localPlayerId}");
         GUILayout.Label($"Players Connected: {playerObjects.Count}");
-        
+
         // Connection status with color
         GUI.contentColor = statusColor;
         GUILayout.Label($"Status: {connectionStatus}");
         GUI.contentColor = Color.white;
-        
+
         GUILayout.Label($"Ping: ~{pingEstimate}ms");
         GUILayout.Label($"Packets Sent: {packetsSent}");
         GUILayout.Label($"Packets Received: {packetsReceived}");
-        GUILayout.Label($"Input Sequence: #{currentSequence}"); // FIX 3: Show sequence number
         GUILayout.Label($"Server Time: {lastServerTime:F2}s");
-        GUILayout.Label($"Input: ({currentInput.x:F2}, {currentInput.y:F2})");
-        GUILayout.Label($"Shoot: {(shootButtonPressed ? "CHARGING" : "Ready")}");
+
+        // Player 1 info
+        GUI.contentColor = localPlayerColor;
+        GUILayout.Label($"P1 Input: ({currentInput.x:F2}, {currentInput.y:F2}) {(shootButtonPressed ? "[SHOOT]" : "")}");
+        GUI.contentColor = Color.white;
+
+        // Player 2 info (if enabled)
+        if (enableSecondLocalPlayer)
+        {
+            GUI.contentColor = secondLocalPlayerColor;
+            GUILayout.Label($"P2 Input: ({secondPlayerInput.x:F2}, {secondPlayerInput.y:F2}) {(secondPlayerShootPressed ? "[SHOOT]" : "")}");
+            GUI.contentColor = Color.white;
+        }
+
         GUILayout.EndVertical();
-        
+
         GUILayout.EndArea();
-        
-        // Instructions
-        GUILayout.BeginArea(new Rect(10, Screen.height - 130, 320, 120));
+
+        // Instructions - adjust height based on whether second player is enabled
+        int controlsHeight = enableSecondLocalPlayer ? 160 : 120;
+        GUILayout.BeginArea(new Rect(10, Screen.height - controlsHeight - 10, 320, controlsHeight));
         GUILayout.Box("Controls", headerStyle);
         GUILayout.BeginVertical(GUI.skin.box);
-        GUILayout.Label("WASD - Move your character");
-        GUILayout.Label("SPACE - Hold to charge shot");
+        GUI.contentColor = localPlayerColor;
+        GUILayout.Label("Player 1: WASD + SPACE");
+        GUI.contentColor = Color.white;
+        if (enableSecondLocalPlayer)
+        {
+            GUI.contentColor = secondLocalPlayerColor;
+            GUILayout.Label("Player 2: Arrow Keys + Right Shift");
+            GUI.contentColor = Color.white;
+        }
         GUILayout.Label("ESC - Quit application");
         GUILayout.EndVertical();
         GUILayout.EndArea();
