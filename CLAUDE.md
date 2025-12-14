@@ -39,8 +39,8 @@ This command loads project context and shows current status. See [Agentic Workfl
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 1-2 | ✅ Complete | Movement, UDP networking |
-| **Phase 3** | ⏳ In Progress | Projectiles (35% done) |
-| Phase 4 | ⏳ Partial | Prediction done, interpolation pending |
+| **Phase 3** | ⏳ In Progress | Projectiles (55% done) - Arc trajectory complete |
+| Phase 4 | ⏳ Partial | Prediction done, dual local player done, interpolation pending |
 
 ---
 
@@ -177,7 +177,7 @@ if (keyboard.wKey.isPressed) { }
 |---------|------|-----------|---------|
 | ClientInputMessage | 18 bytes | Client → Server | WASD + shoot + sequence |
 | ServerStateUpdateMessage | 6 + 28n bytes | Server → Clients | Player positions |
-| ProjectileSpawnMessage | 37 bytes | Server → Clients | Projectile creation |
+| ProjectileSpawnMessage | 53 bytes | Server → Clients | Arc projectile creation |
 | ConnectMessage | 5 bytes | Client → Server | Initial connection |
 
 ### Timing
@@ -257,13 +257,14 @@ public static XMessage DeserializeX(byte[] data)
 ### Phase 3: Projectile System (In Progress)
 
 **Completed:**
-- ✅ ProjectileSpawnMessage protocol (37 bytes)
+- ✅ ProjectileSpawnMessage protocol (53 bytes with arc data)
 - ✅ Binary serialization for projectiles
-- ✅ Server spawning (0.5s cooldown, direction-based)
-- ✅ Client rendering (linear trajectory, 2s lifetime)
+- ✅ Server spawning (0.5s cooldown, facing-direction based)
+- ✅ Client rendering (arc trajectory with trail)
+- ✅ Parametric arc trajectory (3u height, 10u range)
+- ✅ Trail renderer (yellow → orange gradient)
 
 **Pending:**
-- ❌ Arc trajectory (parametric curve)
 - ❌ Hit detection
 - ❌ Knockback
 
@@ -273,6 +274,7 @@ public static XMessage DeserializeX(byte[] data)
 - ✅ Client-side prediction (local player)
 - ✅ Sequence numbers (foundation for reconciliation)
 - ✅ Input rate limiting (30Hz)
+- ✅ Dual local player testing (P1: WASD+Space, P2: Arrows+RShift)
 
 **Pending:**
 - ❌ Interpolation buffer
@@ -336,4 +338,4 @@ When starting a new Claude Code session:
 
 ---
 
-*Last Updated: 2025-11-20 | Last Session: Phase4-Session1 (Projectile Foundation)*
+*Last Updated: 2025-12-14 | Last Session: Phase4-Session2 (Arc Trajectory + Dual Local Player)*

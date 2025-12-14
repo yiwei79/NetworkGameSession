@@ -2,8 +2,8 @@
 
 > **Deadline:** December 10, 2025
 > **Created:** 2025-11-20
-> **Last Updated:** 2025-11-20
-> **Status:** In Progress (Session 1 Complete)
+> **Last Updated:** 2025-12-14
+> **Status:** In Progress (Session 2 Complete)
 
 ---
 
@@ -52,32 +52,22 @@ Beyond academic requirements, "Loving Away" needs:
 
 ---
 
-### Session 2: Arc Trajectory 📋 PLANNED
+### Session 2: Arc Trajectory + Dual Local Player ✅ COMPLETE
 
-**Goal:** Replace linear trajectory with parabolic arc
+**Goal:** Replace linear trajectory with parabolic arc + add dual local player testing
 
-**Tasks:**
-1. Expand `ProjectileSpawnMessage` (add `targetPosition`, `arcHeight`, `flightTime`)
-   - New size: ~53 bytes (37 + 12 + 4)
-2. Update `Serializer.cs` with new fields
-3. Modify `ServerGameState.SpawnProjectile()` to calculate target based on range
-4. Replace `Projectile.Update()` with parametric arc:
-   ```csharp
-   float t = elapsedTime / flightTime;
-   Vector3 horizontal = Vector3.Lerp(startPos, targetPos, t);
-   float height = arcHeight * 4f * t * (1f - t);
-   transform.position = horizontal + Vector3.up * height;
-   ```
-5. Add trail renderer for visual feedback
+**What Was Done:**
+1. Expanded `ProjectileSpawnMessage` (37 → 53 bytes)
+   - Added `targetPosition`, `arcHeight`, `flightTime`
+2. Updated `Serializer.cs` with new fields
+3. Implemented parametric arc trajectory in `Projectile.cs`
+4. Added trail renderer (yellow → orange gradient)
+5. **Bonus:** Dual local player testing mode (P1: WASD+Space, P2: Arrows+RShift)
+6. **Bonus:** Fixed facing direction (projectiles shoot in last movement direction)
 
-**Files to Modify:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, Projectile.cs
+**Files Modified:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, Projectile.cs, GameNetworkManager.cs, SimplePlayerController.cs
 
-**Estimated Time:** 2 hours
-
-**Success Criteria:**
-- Projectiles follow visible arc trajectory
-- Arc height varies with charge time (future: Session 5)
-- Landing point predictable based on velocity
+**Documentation:** [SESSION_2_SUMMARY.md](SESSION_2_SUMMARY.md)
 
 ---
 
@@ -206,7 +196,7 @@ Beyond academic requirements, "Loving Away" needs:
 | Session | Content | Est. Time | Target Date |
 |---------|---------|-----------|-------------|
 | 1 | Projectile Foundation | 2h | ✅ Nov 20 |
-| 2 | Arc Trajectory | 2h | Nov 22-24 |
+| 2 | Arc Trajectory + Dual Local Player | 2h | ✅ Dec 14 |
 | 3 | Hit Detection & Knockback | 3h | Nov 25-27 |
 | 4 | Interpolation Buffer | 3h | Nov 28-30 |
 | 5 | Charge Mechanic | 2h | Dec 1-3 |
@@ -222,11 +212,11 @@ Beyond academic requirements, "Loving Away" needs:
 
 **Must Have (60% grade - Replication):**
 1. ✅ Session 1: Projectile Foundation
-2. Session 3: Hit Detection (proves replication works)
-3. Session 4: Interpolation (smooth rendering)
+2. ✅ Session 2: Arc Trajectory (better gameplay)
+3. Session 3: Hit Detection (proves replication works)
+4. Session 4: Interpolation (smooth rendering)
 
 **Should Have (10% grade - Playability):**
-4. Session 2: Arc Trajectory (better gameplay)
 5. Session 6: Arena Boundary (win/lose condition)
 
 **Nice to Have (20% grade - Polish):**

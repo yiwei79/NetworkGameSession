@@ -49,9 +49,10 @@ public class ServerGameState
             {
                 playerId = playerId,
                 position = GetSpawnPosition(playerId),
-                velocity = Vector3.zero
+                velocity = Vector3.zero,
+                facingDirection = new Vector3(0, 0, 1) // Default facing forward (positive Z)
             };
-            
+
             players[playerId] = newPlayer;
             UnityEngine.Debug.Log($"[ServerGameState] Added player {playerId} at {newPlayer.position}");
         }
@@ -145,7 +146,10 @@ public class ServerGameState
                 Vector2 normalizedInput = player.currentInput.normalized;
                 Vector3 inputDir3D = new Vector3(normalizedInput.x, 0, normalizedInput.y);
                 Vector3 targetVelocity = inputDir3D * moveSpeed;
-                
+
+                // Update facing direction to match movement direction
+                player.facingDirection = inputDir3D;
+
                 // Apply acceleration with deltaTime for frame-rate independence
                 float accelStep = acceleration * deltaTime;
                 player.velocity = Vector3.MoveTowards(
@@ -191,7 +195,7 @@ public class ServerGameState
                 float timeSinceLastShot = serverTime - GetLastShootTime(playerId);
                 if (timeSinceLastShot >= projectileCooldown)
                 {
-                    SpawnProjectile(playerId, player.position, player.velocity);
+                    SpawnProjectile(playerId, player.position, player.facingDirection);
                     lastShootTime[playerId] = serverTime;
                 }
             }
@@ -207,24 +211,19 @@ public class ServerGameState
     /// <summary>
     /// Spawns a projectile from a player with arc trajectory
     /// </summary>
-    private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 playerVelocity)
+    private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 facingDirection)
     {
         uint projectileId = nextProjectileId++;
 
         // Calculate launch position (above player)
         Vector3 startPosition = playerPosition + new Vector3(0, projectileHeight, 0);
 
-        // Calculate projectile direction
-        // Use player's movement direction, or forward if stationary
-        Vector3 shootDirection;
-        if (playerVelocity.magnitude > 0.1f)
+        // Use player's facing direction (always horizontal)
+        Vector3 shootDirection = new Vector3(facingDirection.x, 0, facingDirection.z).normalized;
+
+        // Fallback to forward if facing direction is zero (shouldn't happen)
+        if (shootDirection.magnitude < 0.1f)
         {
-            // Shoot in movement direction (horizontal only)
-            shootDirection = new Vector3(playerVelocity.x, 0, playerVelocity.z).normalized;
-        }
-        else
-        {
-            // If player is stationary, shoot forward (positive Z)
             shootDirection = new Vector3(0, 0, 1);
         }
 
@@ -331,6 +330,7 @@ public struct PlayerState
     public uint playerId;
     public Vector3 position;
     public Vector3 velocity;
+    public Vector3 facingDirection; // Last movement direction (for shooting when stationary)
     public bool isShootPressed;
     public Vector2 currentInput; // Latest input from client (stored, applied during UpdateState)
 }
