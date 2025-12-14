@@ -20,6 +20,8 @@ public class ServerGameState
 
     // Projectile system
     private Queue<ProjectileSpawnMessage> pendingProjectileSpawns;
+    private Queue<ProjectileHitMessage> pendingHitMessages;
+    private Dictionary<uint, ServerProjectile> activeProjectiles; // Track active projectiles for hit detection
     private uint nextProjectileId = 1;
     private float projectileCooldown = 0.5f; // 0.5 seconds between shots
     private Dictionary<uint, float> lastShootTime; // Track last shoot time per player
@@ -27,12 +29,18 @@ public class ServerGameState
     private float projectileHeight = 2.0f; // Launch height above player
     private float projectileRange = 10.0f; // How far projectiles travel horizontally
     private float projectileArcHeight = 3.0f; // Peak height of arc trajectory
+
+    // Hit detection parameters
+    private float collisionRadius = 0.7f; // Combined projectile (0.2) + player (0.5) radius
+    private float knockbackForce = 12.0f; // Units per second
     
     public ServerGameState()
     {
         players = new Dictionary<uint, PlayerState>();
         serverTime = 0f;
         pendingProjectileSpawns = new Queue<ProjectileSpawnMessage>();
+        pendingHitMessages = new Queue<ProjectileHitMessage>();
+        activeProjectiles = new Dictionary<uint, ServerProjectile>();
         lastShootTime = new Dictionary<uint, float>();
     }
     
@@ -202,8 +210,11 @@ public class ServerGameState
 
             players[playerId] = player;
         }
+
+        // Check projectile collisions after all player positions updated
+        CheckProjectileCollisions();
     }
-    
+
     #endregion
 
     #region Projectile System
@@ -251,6 +262,19 @@ public class ServerGameState
         // Queue for broadcasting
         pendingProjectileSpawns.Enqueue(spawnMsg);
 
+        // Add to active projectiles for server-side hit detection
+        ServerProjectile serverProjectile = new ServerProjectile
+        {
+            projectileId = projectileId,
+            ownerId = playerId,
+            startPosition = startPosition,
+            targetPosition = targetPosition,
+            arcHeight = projectileArcHeight,
+            flightTime = flightTime,
+            spawnTime = serverTime
+        };
+        activeProjectiles[projectileId] = serverProjectile;
+
         UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition} -> {targetPosition} (arc height: {projectileArcHeight})");
     }
 
@@ -275,6 +299,115 @@ public class ServerGameState
         ProjectileSpawnMessage[] spawns = pendingProjectileSpawns.ToArray();
         pendingProjectileSpawns.Clear();
         return spawns;
+    }
+
+    /// <summary>
+    /// Gets all pending hit messages and clears the queue
+    /// Called by GameNetworkManager to broadcast hits to clients
+    /// </summary>
+    public ProjectileHitMessage[] GetPendingHitMessages()
+    {
+        ProjectileHitMessage[] hits = pendingHitMessages.ToArray();
+        pendingHitMessages.Clear();
+        return hits;
+    }
+
+    /// <summary>
+    /// Calculates the current position of a projectile using arc trajectory formula
+    /// CRITICAL: Must match Projectile.cs client-side rendering formula exactly
+    /// </summary>
+    private Vector3 CalculateProjectilePosition(ServerProjectile proj, float currentTime)
+    {
+        float elapsedTime = currentTime - proj.spawnTime;
+        float t = Mathf.Clamp01(elapsedTime / proj.flightTime);
+
+        // Horizontal (XZ plane): Linear interpolation
+        Vector3 horizontal = Vector3.Lerp(proj.startPosition, proj.targetPosition, t);
+
+        // Vertical (Y axis): Parabolic arc
+        // Formula: heightOffset = arcHeight * 4 * t * (1 - t)
+        // - At t=0: heightOffset = 0 (starts at ground)
+        // - At t=0.5: heightOffset = arcHeight (peaks at midpoint)
+        // - At t=1.0: heightOffset = 0 (returns to ground)
+        float heightOffset = proj.arcHeight * 4f * t * (1f - t);
+
+        return new Vector3(horizontal.x, horizontal.y + heightOffset, horizontal.z);
+    }
+
+    /// <summary>
+    /// Checks for projectile collisions with players
+    /// Called every server tick (20 Hz) after player positions are updated
+    /// </summary>
+    private void CheckProjectileCollisions()
+    {
+        // Create list of projectile IDs to remove (can't modify dictionary during iteration)
+        List<uint> projectilesToRemove = new List<uint>();
+
+        foreach (var kvp in activeProjectiles)
+        {
+            ServerProjectile projectile = kvp.Value;
+            float elapsedTime = serverTime - projectile.spawnTime;
+
+            // Check if projectile has expired
+            if (elapsedTime >= projectile.flightTime)
+            {
+                projectilesToRemove.Add(projectile.projectileId);
+                UnityEngine.Debug.Log($"[ServerGameState] Projectile {projectile.projectileId} expired (flight time: {projectile.flightTime}s)");
+                continue;
+            }
+
+            // Calculate current projectile position
+            Vector3 projectilePosition = CalculateProjectilePosition(projectile, serverTime);
+
+            // Check collision with all players
+            foreach (var playerKvp in players)
+            {
+                PlayerState player = playerKvp.Value;
+
+                // Skip owner (can't hit yourself)
+                if (player.playerId == projectile.ownerId)
+                {
+                    continue;
+                }
+
+                // Calculate 3D distance between projectile and player
+                float distance = Vector3.Distance(projectilePosition, player.position);
+
+                // Check if collision detected
+                if (distance < collisionRadius)
+                {
+                    // HIT DETECTED!
+                    UnityEngine.Debug.Log($"[ServerGameState] HIT! Projectile {projectile.projectileId} hit player {player.playerId} at distance {distance:F2}");
+
+                    // Calculate knockback direction (away from projectile)
+                    Vector3 knockbackDirection = (player.position - projectilePosition).normalized;
+
+                    // Apply knockback to player velocity
+                    player.velocity += knockbackDirection * knockbackForce;
+                    players[player.playerId] = player;
+
+                    // Create hit message for clients
+                    ProjectileHitMessage hitMsg = new ProjectileHitMessage(
+                        projectile.projectileId,
+                        player.playerId,
+                        projectilePosition
+                    );
+                    pendingHitMessages.Enqueue(hitMsg);
+
+                    // Mark projectile for removal
+                    projectilesToRemove.Add(projectile.projectileId);
+
+                    // Break inner loop - projectile can only hit one player
+                    break;
+                }
+            }
+        }
+
+        // Remove expired and hit projectiles
+        foreach (uint projectileId in projectilesToRemove)
+        {
+            activeProjectiles.Remove(projectileId);
+        }
     }
 
     #endregion
@@ -333,5 +466,19 @@ public struct PlayerState
     public Vector3 facingDirection; // Last movement direction (for shooting when stationary)
     public bool isShootPressed;
     public Vector2 currentInput; // Latest input from client (stored, applied during UpdateState)
+}
+
+/// <summary>
+/// Server-side projectile tracking structure for hit detection
+/// </summary>
+public struct ServerProjectile
+{
+    public uint projectileId;
+    public uint ownerId;
+    public Vector3 startPosition;
+    public Vector3 targetPosition;
+    public float arcHeight;
+    public float flightTime;
+    public float spawnTime; // Server timestamp when projectile was spawned
 }
 

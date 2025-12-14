@@ -285,6 +285,60 @@ public static class Serializer
 
     #endregion
 
+    #region ProjectileHitMessage Serialization
+
+    /// <summary>
+    /// Serializes a ProjectileHitMessage to byte array
+    /// Format: [1 byte: type][4 bytes: projectileId][4 bytes: targetPlayerId][12 bytes: hitPosition]
+    /// Total: 21 bytes
+    /// </summary>
+    public static byte[] SerializeProjectileHit(ProjectileHitMessage msg)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms))
+            {
+                writer.Write((byte)msg.messageType);
+                writer.Write(msg.projectileId);
+                writer.Write(msg.targetPlayerId);
+
+                // Hit position (Vector3 = 3 floats)
+                writer.Write(msg.hitPosition.x);
+                writer.Write(msg.hitPosition.y);
+                writer.Write(msg.hitPosition.z);
+
+                return ms.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deserializes byte array to ProjectileHitMessage
+    /// </summary>
+    public static ProjectileHitMessage DeserializeProjectileHit(byte[] data)
+    {
+        using (MemoryStream ms = new MemoryStream(data))
+        {
+            using (BinaryReader reader = new BinaryReader(ms))
+            {
+                ProjectileHitMessage msg = new ProjectileHitMessage();
+                msg.messageType = (MessageType)reader.ReadByte();
+                msg.projectileId = reader.ReadUInt32();
+                msg.targetPlayerId = reader.ReadUInt32();
+
+                // Hit position
+                float hitX = reader.ReadSingle();
+                float hitY = reader.ReadSingle();
+                float hitZ = reader.ReadSingle();
+                msg.hitPosition = new Vector3(hitX, hitY, hitZ);
+
+                return msg;
+            }
+        }
+    }
+
+    #endregion
+
     #region Utility Methods
 
     /// <summary>

@@ -46,9 +46,11 @@ This command loads project context and shows current status. See [Agentic Workfl
 
 ## Agentic Workflow System
 
-This project uses **Claude Code slash commands** for structured development sessions.
+This project uses a **hybrid system** combining:
+1. **Slash Commands** (`.claude/commands/`) - Manual workflow triggers
+2. **Official Claude Code Agents** (`.claude/agents/`) - Specialized AI experts
 
-### Available Commands
+### Available Slash Commands
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
@@ -60,11 +62,33 @@ This project uses **Claude Code slash commands** for structured development sess
 | `/test` | Validate implementation | After implementation |
 | `/session-end` | Back-propagate context | End of session |
 
-### Workflow Pattern
+### Available Agents
 
+| Agent | Model | Purpose | Auto-Invoked When |
+|-------|-------|---------|-------------------|
+| `session-coordinator-opus` | Opus | Workflow orchestration | Session start/end, coordination needed |
+| `planning-agent-opus` | Opus | Implementation planning | New features, architecture decisions |
+| `implementation-agent-sonnet` | Sonnet | Code writing | Feature implementation, bug fixes |
+| `testing-agent-sonnet` | Sonnet | Quality assurance | After implementation, debugging |
+| `documentation-agent-sonnet` | Sonnet | Documentation updates | Session end, docs need updating |
+
+**See `.claude/AGENTS_GUIDE.md` for detailed agent usage.**
+
+### Workflow Patterns
+
+**Traditional (Manual):**
 ```
 /session-start  →  /plan  →  /implement  →  /test  →  /document  →  /session-end
 ```
+
+**Agent-Driven (Automatic):**
+```
+"Start session" → "Implement X" → "Test it" → "Document changes" → "End session"
+[Agents auto-delegate between planning/coding/testing/docs phases]
+```
+
+**Hybrid (Recommended):**
+Mix manual slash commands with automatic agent delegation as needed.
 
 ### Back-Propagation Mechanism
 
@@ -78,7 +102,11 @@ Every `/session-end` updates:
 ### Workflow Files Location
 
 ```
-.claude/commands/           # Slash command definitions
+.claude/
+├── commands/               # Slash command definitions
+├── agents/                 # Official Claude Code agents ⭐ NEW
+└── AGENTS_GUIDE.md         # How to use agents ⭐ NEW
+
 Docs/Workflow/
 ├── PROJECT_STATUS.md       # Living status (updated each session)
 ├── CONTEXT_CHECKLIST.md    # What new sessions should read
@@ -90,14 +118,24 @@ Docs/Workflow/
 
 ```
 NetworkGameSession/
-├── .claude/commands/              # ⭐ SLASH COMMANDS
-│   ├── session-start.md
-│   ├── session-end.md
-│   ├── plan.md
-│   ├── implement.md
-│   ├── document.md
-│   ├── test.md
-│   └── status.md
+├── .claude/
+│   ├── commands/                  # ⭐ SLASH COMMANDS
+│   │   ├── session-start.md
+│   │   ├── session-end.md
+│   │   ├── plan.md
+│   │   ├── implement.md
+│   │   ├── document.md
+│   │   ├── test.md
+│   │   └── status.md
+│   │
+│   ├── agents/                    # ⭐ OFFICIAL CLAUDE CODE AGENTS
+│   │   ├── session-coordinator-opus.md
+│   │   ├── planning-agent-opus.md
+│   │   ├── implementation-agent-sonnet.md
+│   │   ├── testing-agent-sonnet.md
+│   │   └── documentation-agent-sonnet.md
+│   │
+│   └── AGENTS_GUIDE.md            # Agent usage guide
 │
 ├── Docs/
 │   ├── Workflow/                  # ⭐ AGENTIC WORKFLOW
@@ -338,4 +376,4 @@ When starting a new Claude Code session:
 
 ---
 
-*Last Updated: 2025-12-14 | Last Session: Phase4-Session2 (Arc Trajectory + Dual Local Player)*
+*Last Updated: 2025-12-14 | Last Change: Added official Claude Code agents integration*

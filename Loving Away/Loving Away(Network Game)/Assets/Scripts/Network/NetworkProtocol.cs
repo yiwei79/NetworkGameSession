@@ -9,7 +9,8 @@ public enum MessageType : byte
     ServerStateUpdate = 2,
     Connect = 3,
     Disconnect = 4,
-    ProjectileSpawn = 5
+    ProjectileSpawn = 5,
+    ProjectileHit = 6
 }
 
 /// <summary>
@@ -116,6 +117,27 @@ public struct ProjectileSpawnMessage
         this.targetPosition = targetPosition;
         this.arcHeight = arcHeight;
         this.flightTime = flightTime;
+    }
+}
+
+/// <summary>
+/// Projectile hit message sent from server to clients
+/// Contains hit event data for visual effects and projectile cleanup
+/// Size: 1 + 4 + 4 + 12 = 21 bytes
+/// </summary>
+public struct ProjectileHitMessage
+{
+    public MessageType messageType;
+    public uint projectileId;       // ID of projectile that hit
+    public uint targetPlayerId;     // Player who was hit
+    public Vector3 hitPosition;     // Position where collision occurred (for visual effects)
+
+    public ProjectileHitMessage(uint projectileId, uint targetPlayerId, Vector3 hitPosition)
+    {
+        this.messageType = MessageType.ProjectileHit;
+        this.projectileId = projectileId;
+        this.targetPlayerId = targetPlayerId;
+        this.hitPosition = hitPosition;
     }
 }
 

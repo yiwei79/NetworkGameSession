@@ -1,7 +1,7 @@
 # PROJECT STATUS
 
 > **Last Updated:** 2025-12-14
-> **Last Session:** Phase4-Session2 (Arc Trajectory + Dual Local Player)
+> **Last Session:** Phase4-Session3 (Hit Detection + Knockback)
 > **Branch:** Phase_4
 
 ---
@@ -12,7 +12,7 @@
 |-------|--------|----------|-------------|
 | Phase 1 | ✅ Complete | 100% | Core mechanics (movement, input, basic physics) |
 | Phase 2 | ✅ Complete | 100% | UDP networking, position sync, serialization |
-| **Phase 3** | ⏳ **IN PROGRESS** | 55% | Projectile system, hit detection, knockback |
+| **Phase 3** | ⏳ **IN PROGRESS** | 85% | Projectile system, hit detection ✅, knockback ✅, death/respawn pending |
 | Phase 4 | ⏳ Partial | 50% | Client prediction ✅, interpolation ❌, reconciliation ❌ |
 | Phase 5 | ❌ Not Started | 0% | Polish, lag compensation, final demo |
 
@@ -27,9 +27,9 @@
 | 3.3 Server projectile spawning | ✅ Done | Session 1-2 | 0.5s cooldown, facing-direction based |
 | 3.4 Client projectile rendering | ✅ Done | Session 1-2 | Arc trajectory, trail renderer |
 | 3.5 Arc trajectory (parabolic) | ✅ Done | Session 2 | Parametric curve, 3u height, 10u range |
-| 3.6 Server hit detection | ❌ Pending | Session 3 | Collision checking |
-| 3.7 Knockback on hit | ❌ Pending | Session 3 | Push force application |
-| 3.8 Death/respawn system | ❌ Pending | Session 3+ | Arena boundary elimination |
+| 3.6 Server hit detection | ✅ Done | Session 3 | 3D collision, 0.7u radius, 20Hz tick rate |
+| 3.7 Knockback on hit | ✅ Done | Session 3 | 12 u/s impulse, server-authoritative |
+| 3.8 Death/respawn system | ❌ Pending | Session 4 | Arena boundary elimination |
 
 ---
 
@@ -52,32 +52,46 @@
 
 | Session | Date | What Was Done | Files Modified |
 |---------|------|---------------|----------------|
+| Phase4-Session3 | 2025-12-14 | Hit detection, knockback, ProjectileHitMessage, server projectile tracking | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session2 | 2025-12-14 | Arc trajectory, trail renderer, dual local player, facing direction fix | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, Projectile.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session1 | 2025-11-20 | Projectile foundation (protocol, serialization, spawning, rendering) | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs, Projectile.cs (NEW) |
 | D3-InputFixes | 2025-11-xx | Input delay resolution (rate limiting, prediction, sequence numbers) | SimplePlayerController.cs, GameNetworkManager.cs, NetworkProtocol.cs |
 
 ---
 
-## Next Session: Phase4-Session3
+## Next Session: Phase4-Session4
 
-**Goal:** Server-side hit detection and knockback
+**Goal:** Visual effects for hits and death/respawn system
 
 **Pre-read:**
-- [SESSION_2_SUMMARY.md](../Deliverable%204/SESSION_2_SUMMARY.md) - Previous session context
-- [ServerGameState.cs](../../Loving%20Away/Loving%20Away(Network%20Game)/Assets/Scripts/Gameplay/ServerGameState.cs) - Current server logic
+- [SESSION_3_SUMMARY.md](../Deliverable%204/SESSION_3_SUMMARY.md) - Hit detection implementation
+- [SimplePlayerController.cs](../../Loving%20Away/Loving%20Away(Network%20Game)/Assets/Scripts/Gameplay/SimplePlayerController.cs) - Lines 661, 669 have TODO markers
 
 **Tasks:**
-1. Add `ServerProjectile` struct to track active projectiles on server
-2. Add `ProjectileHitMessage` to protocol (~21 bytes)
-3. Implement collision detection in `UpdateState()` (projectile vs player)
-4. Apply knockback impulse on hit
-5. Client-side hit feedback (visual effects)
+1. **Visual Effects:**
+   - Explosion particle effect at hit position
+   - Screen shake for local player when hit
+   - Hit flash/tint effect
+   - Projectile fade-out animation (optional)
+
+2. **Death/Respawn System:**
+   - Add `PlayerDeathMessage` to protocol (~21 bytes)
+   - Track player deaths (hit-based or health-based)
+   - Implement respawn timer (3 seconds)
+   - Add `PlayerRespawnMessage` with spawn position
+   - Client death animation and respawn teleport
+
+3. **Arena Boundary Elimination:**
+   - Check player distance from center > arenaRadius (15u)
+   - Trigger death when outside boundary
+   - Visual warning when near edge
 
 **Key Considerations:**
-- Server must track projectile positions (currently only clients render)
-- Collision radius: projectile 0.2, player ~0.5
-- Knockback force: ~10-15 units velocity impulse
-- Destroy projectile on hit
+- Pool particle effects (don't Instantiate() every hit)
+- Screen shake should be impactful but not nauseating
+- Respawn positions must be valid (not overlapping, inside arena)
+- Death effects auto-destroy after animation
+- Consider invincibility frames after respawn (0.5-1.0s)
 
 ---
 
@@ -90,6 +104,7 @@
 | ClientInputMessage | 18 bytes | Includes sequence number |
 | ServerStateUpdate | 6 + 28n bytes | n = player count |
 | ProjectileSpawnMessage | 53 bytes | Updated in Session 2 |
+| ProjectileHitMessage | 21 bytes | Added in Session 3 |
 | Max Players | 4 | Design target |
 
 ---
@@ -108,7 +123,7 @@
 ## Quick Links
 
 - [DELIVERABLE_4_PLAN.md](../Deliverable%204/DELIVERABLE_4_PLAN.md) - Full session roadmap
-- [SESSION_2_SUMMARY.md](../Deliverable%204/SESSION_2_SUMMARY.md) - Latest session handoff
+- [SESSION_3_SUMMARY.md](../Deliverable%204/SESSION_3_SUMMARY.md) - Latest session handoff
 - [Technical Implementation Plan](../Final%20Project/Technical_Implementation_Plan.md)
 - [CLAUDE.md](../../CLAUDE.md) - Master context
 - [Current Deliverable Docs](../Deliverable%204/)

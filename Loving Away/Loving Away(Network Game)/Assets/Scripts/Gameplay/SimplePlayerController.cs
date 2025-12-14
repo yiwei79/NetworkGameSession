@@ -106,6 +106,7 @@ public class SimplePlayerController : MonoBehaviour
         // Subscribe to network events
         networkManager.OnStateUpdate += HandleStateUpdate;
         networkManager.OnProjectileSpawn += HandleProjectileSpawn;
+        networkManager.OnProjectileHit += HandleProjectileHit;
 
         lastStateUpdateTime = Time.time;
 
@@ -631,6 +632,41 @@ public class SimplePlayerController : MonoBehaviour
         projectileObjects[spawnMsg.projectileId] = projectileObj;
 
         UnityEngine.Debug.Log($"[SimplePlayerController] Spawned projectile {spawnMsg.projectileId} from player {spawnMsg.ownerId}");
+    }
+
+    void HandleProjectileHit(ProjectileHitMessage hitMsg)
+    {
+        // Check if this projectile exists locally
+        if (projectileObjects.ContainsKey(hitMsg.projectileId))
+        {
+            // Destroy the projectile GameObject
+            GameObject projectileObj = projectileObjects[hitMsg.projectileId];
+            Destroy(projectileObj);
+            projectileObjects.Remove(hitMsg.projectileId);
+
+            UnityEngine.Debug.Log($"[SimplePlayerController] Projectile {hitMsg.projectileId} hit player {hitMsg.targetPlayerId} at {hitMsg.hitPosition}");
+        }
+        else
+        {
+            UnityEngine.Debug.LogWarning($"[SimplePlayerController] Received hit for unknown projectile {hitMsg.projectileId}");
+        }
+
+        // Check if a local player was hit
+        bool isLocalPlayerHit = (hitMsg.targetPlayerId == localPlayerId);
+        bool isSecondPlayerHit = (enableSecondLocalPlayer && hitMsg.targetPlayerId == secondLocalPlayerId);
+
+        if (isLocalPlayerHit)
+        {
+            UnityEngine.Debug.Log($"<color=yellow>[HIT!] You (Player {localPlayerId}) were hit by projectile {hitMsg.projectileId}!</color>");
+            // TODO (Session 4): Add visual feedback - screen shake, flash, sound effect
+        }
+        else if (isSecondPlayerHit)
+        {
+            UnityEngine.Debug.Log($"<color=cyan>[HIT!] Player {secondLocalPlayerId} was hit by projectile {hitMsg.projectileId}!</color>");
+            // TODO (Session 4): Add visual feedback for second player
+        }
+
+        // TODO (Session 4): Spawn explosion/impact effect at hitMsg.hitPosition
     }
 
     #endregion

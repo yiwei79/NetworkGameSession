@@ -45,12 +45,14 @@ public class GameNetworkManager : MonoBehaviour
     private Queue<ServerStateUpdateMessage> incomingStateQueue;
     private Queue<ClientInputMessage> outgoingInputQueue;
     private Queue<ProjectileSpawnMessage> incomingProjectileQueue;
-    
+    private Queue<ProjectileHitMessage> incomingHitQueue;
+
     // Locks for thread safety
     private object inputQueueLock = new object();
     private object stateQueueLock = new object();
     private object outgoingQueueLock = new object();
     private object projectileQueueLock = new object();
+    private object hitQueueLock = new object();
     
     // Connection tracking
     private Dictionary<string, uint> endpointToPlayerId;
@@ -74,6 +76,7 @@ public class GameNetworkManager : MonoBehaviour
         incomingStateQueue = new Queue<ServerStateUpdateMessage>();
         outgoingInputQueue = new Queue<ClientInputMessage>();
         incomingProjectileQueue = new Queue<ProjectileSpawnMessage>();
+        incomingHitQueue = new Queue<ProjectileHitMessage>();
         connectedClients = new List<EndPoint>();
         endpointToPlayerId = new Dictionary<string, uint>();
         
@@ -270,6 +273,9 @@ public class GameNetworkManager : MonoBehaviour
 
         // Broadcast pending projectile spawns
         BroadcastProjectileSpawns();
+
+        // Broadcast pending projectile hits
+        BroadcastProjectileHits();
     }
 
     void BroadcastProjectileSpawns()
@@ -306,7 +312,42 @@ public class GameNetworkManager : MonoBehaviour
             }
         }
     }
-    
+
+    void BroadcastProjectileHits()
+    {
+        ProjectileHitMessage[] hits = serverGameState.GetPendingHitMessages();
+
+        if (hits.Length == 0) return;
+
+        foreach (ProjectileHitMessage hitMsg in hits)
+        {
+            byte[] data = Serializer.SerializeProjectileHit(hitMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send projectile hit to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see hits)
+            lock (hitQueueLock)
+            {
+                incomingHitQueue.Enqueue(hitMsg);
+            }
+        }
+    }
+
     void UpdateServer()
     {
         // Process incoming input messages on main thread
@@ -421,6 +462,16 @@ public class GameNetworkManager : MonoBehaviour
                     incomingProjectileQueue.Enqueue(projectileMsg);
                 }
                 break;
+
+            case MessageType.ProjectileHit:
+                ProjectileHitMessage hitMsg = Serializer.DeserializeProjectileHit(data);
+
+                // Queue for main thread processing
+                lock (hitQueueLock)
+                {
+                    incomingHitQueue.Enqueue(hitMsg);
+                }
+                break;
         }
     }
     
@@ -467,6 +518,17 @@ public class GameNetworkManager : MonoBehaviour
                 ProjectileSpawnMessage projectileMsg = incomingProjectileQueue.Dequeue();
                 // Notify listeners (SimplePlayerController will handle this)
                 BroadcastProjectileSpawn(projectileMsg);
+            }
+        }
+
+        // Process incoming projectile hits on main thread
+        lock (hitQueueLock)
+        {
+            while (incomingHitQueue.Count > 0)
+            {
+                ProjectileHitMessage hitMsg = incomingHitQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastProjectileHit(hitMsg);
             }
         }
     }
@@ -521,7 +583,18 @@ public class GameNetworkManager : MonoBehaviour
     {
         OnProjectileSpawn?.Invoke(spawnMsg);
     }
-    
+
+    /// <summary>
+    /// Event for projectile hits received from server
+    /// </summary>
+    public delegate void ProjectileHitHandler(ProjectileHitMessage hitMsg);
+    public event ProjectileHitHandler OnProjectileHit;
+
+    private void BroadcastProjectileHit(ProjectileHitMessage hitMsg)
+    {
+        OnProjectileHit?.Invoke(hitMsg);
+    }
+
     /// <summary>
     /// Gets network statistics for debug display
     /// FIX 3: Now includes sequence number
