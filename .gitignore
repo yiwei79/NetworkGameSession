@@ -80,6 +80,7 @@ crashlytics-build.properties
 
 # IDE workspace files
 *.code-workspace
+
 /.claude
 CLAUDE.md
 # Claude Code - ignore user-specific settings but track agents/commands
