@@ -64,7 +64,7 @@ public static class Serializer
     /// <summary>
     /// Serializes a ServerStateUpdateMessage to byte array
     /// Format: [1 byte: type][4 bytes: serverTime][1 byte: playerCount][PlayerSnapshot array]
-    /// Total: 6 + (29 * playerCount) bytes (Session 4: PlayerSnapshot now 29 bytes with isAlive)
+    /// Total: 6 + (30 * playerCount) bytes (Phase 3: PlayerSnapshot now 30 bytes with health)
     /// </summary>
     public static byte[] SerializeServerState(ServerStateUpdateMessage msg)
     {
@@ -119,8 +119,8 @@ public static class Serializer
 
     /// <summary>
     /// Serializes a PlayerSnapshot using an existing BinaryWriter
-    /// Format: [4 bytes: playerId][12 bytes: position][12 bytes: velocity][1 byte: isAlive]
-    /// Total: 29 bytes (Session 4: added isAlive)
+    /// Format: [4 bytes: playerId][12 bytes: position][12 bytes: velocity][1 byte: isAlive][1 byte: health]
+    /// Total: 30 bytes (Phase 3: added health)
     /// </summary>
     private static void SerializePlayerSnapshot(BinaryWriter writer, PlayerSnapshot snapshot)
     {
@@ -138,6 +138,9 @@ public static class Serializer
 
         // Alive state (Session 4)
         writer.Write(snapshot.isAlive);
+
+        // Health (Phase 3: HP 0-5)
+        writer.Write(snapshot.health);
     }
 
     /// <summary>
@@ -162,7 +165,10 @@ public static class Serializer
         // Alive state (Session 4)
         bool isAlive = reader.ReadBoolean();
 
-        return new PlayerSnapshot(playerId, position, velocity, isAlive);
+        // Health (Phase 3)
+        byte health = reader.ReadByte();
+
+        return new PlayerSnapshot(playerId, position, velocity, isAlive, health);
     }
 
     #endregion

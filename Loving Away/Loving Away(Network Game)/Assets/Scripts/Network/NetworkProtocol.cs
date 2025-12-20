@@ -63,7 +63,7 @@ public struct ServerStateUpdateMessage
 
 /// <summary>
 /// Snapshot of a single player's state at a specific moment
-/// Size: 4 + 12 + 12 + 1 = 29 bytes per player (Session 4: added isAlive)
+/// Size: 4 + 12 + 12 + 1 + 1 = 30 bytes per player (Phase 3: added health)
 /// </summary>
 public struct PlayerSnapshot
 {
@@ -71,13 +71,15 @@ public struct PlayerSnapshot
     public Vector3 position;
     public Vector3 velocity;
     public bool isAlive;  // Session 4: Death/respawn state
+    public byte health;   // Phase 3: Current HP (0-5, max 5)
 
-    public PlayerSnapshot(uint playerId, Vector3 position, Vector3 velocity, bool isAlive)
+    public PlayerSnapshot(uint playerId, Vector3 position, Vector3 velocity, bool isAlive, byte health)
     {
         this.playerId = playerId;
         this.position = position;
         this.velocity = velocity;
         this.isAlive = isAlive;
+        this.health = health;
     }
 }
 

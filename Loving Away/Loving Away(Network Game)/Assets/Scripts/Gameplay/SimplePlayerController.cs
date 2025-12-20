@@ -35,6 +35,7 @@ public class SimplePlayerController : MonoBehaviour
     private Dictionary<uint, GameObject> playerObjects;
     private Dictionary<uint, ShootVisualFeedback> playerVisualFeedback;
     private Dictionary<uint, PlayerVisualController> playerVisualControllers; // Session 5A: Visual dressing
+    private Dictionary<uint, PlayerHealthBar> playerHealthBars; // Phase 3: Health bars
 
     // Projectile GameObjects
     private Dictionary<uint, GameObject> projectileObjects;
@@ -96,6 +97,7 @@ public class SimplePlayerController : MonoBehaviour
         playerObjects = new Dictionary<uint, GameObject>();
         playerVisualFeedback = new Dictionary<uint, ShootVisualFeedback>();
         playerVisualControllers = new Dictionary<uint, PlayerVisualController>(); // Session 5A: Visual dressing
+        playerHealthBars = new Dictionary<uint, PlayerHealthBar>(); // Phase 3: Health bars
         projectileObjects = new Dictionary<uint, GameObject>();
 
         // Find network manager if not assigned
@@ -534,6 +536,16 @@ public class SimplePlayerController : MonoBehaviour
                     visualController.SetAliveState(snapshot.isAlive);
                 }
             }
+
+            // Phase 3: Update health bar
+            if (playerHealthBars.ContainsKey(snapshot.playerId))
+            {
+                PlayerHealthBar healthBar = playerHealthBars[snapshot.playerId];
+                if (healthBar != null)
+                {
+                    healthBar.SetHealth(snapshot.health);
+                }
+            }
         }
     }
 
@@ -636,6 +648,11 @@ public class SimplePlayerController : MonoBehaviour
         feedback.chargeColor = playerColor * 0.8f;
         feedback.SetOriginalColor(playerColor);
         playerVisualFeedback[playerId] = feedback;
+
+        // Phase 3: Add health bar component
+        PlayerHealthBar healthBar = playerObj.AddComponent<PlayerHealthBar>();
+        healthBar.SetHealth(5); // Start with full HP
+        playerHealthBars[playerId] = healthBar;
 
         // Add name tag (TextMesh above player)
         CreateNameTag(playerObj, playerId);

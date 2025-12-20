@@ -67,6 +67,7 @@ public class ServerGameState
                 velocity = Vector3.zero,
                 facingDirection = new Vector3(0, 0, 1), // Default facing forward (positive Z)
                 isAlive = true,
+                health = 5,     // Phase 3: Start with full HP
                 deathTime = 0f,
                 respawnTime = 0f
             };
@@ -408,6 +409,15 @@ public class ServerGameState
 
                     // Apply knockback to player velocity
                     player.velocity += knockbackDirection * knockbackForce;
+
+                    // Phase 3: Apply damage (1 HP per hit)
+                    if (player.health > 0)
+                    {
+                        player.health--;
+                        UnityEngine.Debug.Log($"[ServerGameState] Player {player.playerId} took damage! Health: {player.health}/5");
+                    }
+
+                    // Save updated player state
                     players[player.playerId] = player;
 
                     // Create hit message for clients
@@ -418,8 +428,11 @@ public class ServerGameState
                     );
                     pendingHitMessages.Enqueue(hitMsg);
 
-                    // Trigger player death (Session 4)
-                    TriggerPlayerDeath(player.playerId, projectilePosition);
+                    // Phase 3: Only trigger death if HP reaches 0
+                    if (player.health == 0)
+                    {
+                        TriggerPlayerDeath(player.playerId, projectilePosition);
+                    }
 
                     // Mark projectile for removal
                     projectilesToRemove.Add(projectile.projectileId);
@@ -486,8 +499,9 @@ public class ServerGameState
 
         PlayerState player = players[playerId];
 
-        // Set player to alive
+        // Set player to alive with full health (Phase 3)
         player.isAlive = true;
+        player.health = 5;  // Phase 3: Restore full HP on respawn
         player.position = GetSpawnPosition(playerId);
         player.velocity = Vector3.zero;
         player.deathTime = 0f;
@@ -576,7 +590,8 @@ public class ServerGameState
                 player.playerId,
                 player.position,
                 player.velocity,
-                player.isAlive  // Session 4: Include alive state
+                player.isAlive,  // Session 4: Include alive state
+                player.health    // Phase 3: Include health
             );
             index++;
         }
@@ -610,6 +625,7 @@ public struct PlayerState
 
     // Death/respawn tracking
     public bool isAlive;
+    public byte health;         // Phase 3: Current HP (0-5, max 5)
     public float deathTime;     // Server timestamp when player died (0 if alive)
     public float respawnTime;   // Server timestamp when player can respawn
 }
