@@ -217,7 +217,12 @@ public class SimplePlayerController : MonoBehaviour
                 currentChargeValue = 0f;
             }
 
-            shootButtonPressed = shootNow;
+            // Phase 2: Only trigger shoot on button RELEASE, not while holding
+            // Require minimum 0.05s charge to avoid accidental taps
+            bool justReleased = !shootNow && wasShootingLastFrame;
+            bool hasMinimumCharge = (Time.time - chargeStartTime) > 0.05f;
+            shootButtonPressed = justReleased && hasMinimumCharge;
+
             wasShootingLastFrame = shootNow;
 
             // ===== PLAYER 2: Arrow Keys + Right Shift =====
@@ -266,7 +271,12 @@ public class SimplePlayerController : MonoBehaviour
                     secondPlayerChargeValue = 0f;
                 }
 
-                secondPlayerShootPressed = secondShootNow;
+                // Phase 2: Only trigger shoot on button RELEASE, not while holding
+                // Require minimum 0.05s charge to avoid accidental taps
+                bool secondJustReleased = !secondShootNow && wasSecondPlayerShootingLastFrame;
+                bool secondHasMinimumCharge = (Time.time - secondPlayerChargeStartTime) > 0.05f;
+                secondPlayerShootPressed = secondJustReleased && secondHasMinimumCharge;
+
                 wasSecondPlayerShootingLastFrame = secondShootNow;
             }
         }
