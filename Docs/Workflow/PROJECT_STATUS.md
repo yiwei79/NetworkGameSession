@@ -1,7 +1,7 @@
 # PROJECT STATUS
 
-> **Last Updated:** 2025-12-14
-> **Last Session:** Phase4-Session3 (Hit Detection + Knockback)
+> **Last Updated:** 2025-12-20
+> **Last Session:** Phase4-Session4.5 (Visual Effects)
 > **Branch:** Phase_4
 
 ---
@@ -12,7 +12,7 @@
 |-------|--------|----------|-------------|
 | Phase 1 | ✅ Complete | 100% | Core mechanics (movement, input, basic physics) |
 | Phase 2 | ✅ Complete | 100% | UDP networking, position sync, serialization |
-| **Phase 3** | ⏳ **IN PROGRESS** | 85% | Projectile system, hit detection ✅, knockback ✅, death/respawn pending |
+| **Phase 3** | ✅ **COMPLETE** | 100% | Projectile system, hit detection, knockback, death/respawn ✅ |
 | Phase 4 | ⏳ Partial | 50% | Client prediction ✅, interpolation ❌, reconciliation ❌ |
 | Phase 5 | ❌ Not Started | 0% | Polish, lag compensation, final demo |
 
@@ -29,7 +29,7 @@
 | 3.5 Arc trajectory (parabolic) | ✅ Done | Session 2 | Parametric curve, 3u height, 10u range |
 | 3.6 Server hit detection | ✅ Done | Session 3 | 3D collision, 0.7u radius, 20Hz tick rate |
 | 3.7 Knockback on hit | ✅ Done | Session 3 | 12 u/s impulse, server-authoritative |
-| 3.8 Death/respawn system | ❌ Pending | Session 4 | Arena boundary elimination |
+| 3.8 Death/respawn system | ✅ Done | Session 4 | Death on hit/boundary, 3s respawn timer ✅ |
 
 ---
 
@@ -52,6 +52,8 @@
 
 | Session | Date | What Was Done | Files Modified |
 |---------|------|---------------|----------------|
+| Phase4-Session4.5 | 2025-12-20 | Visual effects system (hit/death/respawn particles, screen shake), VisualEffectsManager with object pooling | VisualEffectsManager.cs (NEW), SimplePlayerController.cs |
+| Phase4-Session4 | 2025-12-14 | Death/respawn system, arena boundary elimination, PlayerDeathMessage, PlayerRespawnMessage, PlayerSnapshot.isAlive | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session3 | 2025-12-14 | Hit detection, knockback, ProjectileHitMessage, server projectile tracking | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session2 | 2025-12-14 | Arc trajectory, trail renderer, dual local player, facing direction fix | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, Projectile.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session1 | 2025-11-20 | Projectile foundation (protocol, serialization, spawning, rendering) | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs, Projectile.cs (NEW) |
@@ -59,39 +61,24 @@
 
 ---
 
-## Next Session: Phase4-Session4
+## Next Session: Phase4-Session5
 
-**Goal:** Visual effects for hits and death/respawn system
-
-**Pre-read:**
-- [SESSION_3_SUMMARY.md](../Deliverable%204/SESSION_3_SUMMARY.md) - Hit detection implementation
-- [SimplePlayerController.cs](../../Loving%20Away/Loving%20Away(Network%20Game)/Assets/Scripts/Gameplay/SimplePlayerController.cs) - Lines 661, 669 have TODO markers
+**Goal:** Interpolation buffer for smooth remote player rendering
 
 **Tasks:**
-1. **Visual Effects:**
-   - Explosion particle effect at hit position
-   - Screen shake for local player when hit
-   - Hit flash/tint effect
-   - Projectile fade-out animation (optional)
+1. **Interpolation Buffer:**
+   - Create `InterpolationBuffer` class
+   - Store last 5-10 ServerStateUpdateMessage with timestamps
+   - Render remote players at `currentTime - 100ms`
+   - Interpolate between closest snapshots using `Vector3.Lerp()`
 
-2. **Death/Respawn System:**
-   - Add `PlayerDeathMessage` to protocol (~21 bytes)
-   - Track player deaths (hit-based or health-based)
-   - Implement respawn timer (3 seconds)
-   - Add `PlayerRespawnMessage` with spawn position
-   - Client death animation and respawn teleport
-
-3. **Arena Boundary Elimination:**
-   - Check player distance from center > arenaRadius (15u)
-   - Trigger death when outside boundary
-   - Visual warning when near edge
+2. **Known Issues to Address:**
+   - ISSUE-002: Dead player jitter (disable prediction when dead)
 
 **Key Considerations:**
-- Pool particle effects (don't Instantiate() every hit)
-- Screen shake should be impactful but not nauseating
-- Respawn positions must be valid (not overlapping, inside arena)
-- Death effects auto-destroy after animation
-- Consider invincibility frames after respawn (0.5-1.0s)
+- Handle edge cases: buffer empty, single snapshot, extrapolation
+- 100ms render delay should be imperceptible
+- Test with real network latency
 
 ---
 
@@ -105,6 +92,9 @@
 | ServerStateUpdate | 6 + 28n bytes | n = player count |
 | ProjectileSpawnMessage | 53 bytes | Updated in Session 2 |
 | ProjectileHitMessage | 21 bytes | Added in Session 3 |
+| PlayerDeathMessage | 17 bytes | Added in Session 4 |
+| PlayerRespawnMessage | 17 bytes | Added in Session 4 |
+| PlayerSnapshot | 29 bytes | Updated in Session 4 (+isAlive) |
 | Max Players | 4 | Design target |
 
 ---
@@ -120,10 +110,51 @@
 
 ---
 
+## Known Issues (To Fix in Later Phases)
+
+| Issue ID | Description | Root Cause | Suggested Fix | Priority |
+|----------|-------------|------------|---------------|----------|
+| **ISSUE-001** | **Knockback not visible due to instant death** - Player dies immediately on projectile hit, so knockback force is never seen | Current design: death triggers in same frame as knockback application | Option A: Add health system (3 hits to die) so knockback matters. Option B: Delay death by 0.2-0.5s so knockback animation plays first | Medium |
+| **ISSUE-002** | **Dead player "jitters" before server snap** - When player dies, they can still move slightly within a small radius before being snapped to server position continuously | Client-side prediction still runs for dead players; server state (no movement) overrides but client predicts first | Disable client-side prediction when `isAlive == false` in `PredictLocalPlayerMovement()`. Check `isAlive` from latest server snapshot. | Low |
+
+### Issue Details
+
+**ISSUE-001: Knockback Not Visible**
+```
+Current Flow:
+1. Projectile hits player
+2. Knockback applied to velocity (+12 u/s)
+3. TriggerPlayerDeath() called immediately  ← Velocity reset to zero
+4. Player sees death, not knockback
+```
+
+**Fix Options:**
+- **Health System:** Add `health` field (e.g., 100 HP), projectile deals 50 damage, knockback always applies, death only at 0 HP
+- **Death Delay:** Call `TriggerPlayerDeath()` after a short delay (0.3s) so player visibly flies back before dying
+- **Design Decision:** Accept current behavior as "one-hit KO" mechanic (simpler, faster gameplay)
+
+**ISSUE-002: Dead Player Jitter**
+```
+Current Flow (Client):
+1. Player dies (server sets isAlive = false, velocity = 0)
+2. Client Update() still runs → CollectInput() → PredictLocalPlayerMovement()
+3. Prediction moves player slightly
+4. Server state arrives → snaps player back to death position
+5. Repeat → visible jitter
+```
+
+**Fix Location:** `SimplePlayerController.cs` → `PredictLocalPlayerMovement()` method
+```csharp
+// Add at start of PredictLocalPlayerMovement():
+if (!localPlayerIsAlive) return;  // Skip prediction when dead
+```
+
+---
+
 ## Quick Links
 
 - [DELIVERABLE_4_PLAN.md](../Deliverable%204/DELIVERABLE_4_PLAN.md) - Full session roadmap
-- [SESSION_3_SUMMARY.md](../Deliverable%204/SESSION_3_SUMMARY.md) - Latest session handoff
+- [SESSION_4_SUMMARY.md](../Deliverable%204/SESSION_4_SUMMARY.md) - Latest session handoff
 - [Technical Implementation Plan](../Final%20Project/Technical_Implementation_Plan.md)
 - [CLAUDE.md](../../CLAUDE.md) - Master context
 - [Current Deliverable Docs](../Deliverable%204/)

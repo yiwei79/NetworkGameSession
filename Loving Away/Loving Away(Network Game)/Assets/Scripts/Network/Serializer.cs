@@ -62,7 +62,7 @@ public static class Serializer
     /// <summary>
     /// Serializes a ServerStateUpdateMessage to byte array
     /// Format: [1 byte: type][4 bytes: serverTime][1 byte: playerCount][PlayerSnapshot array]
-    /// Total: 6 + (28 * playerCount) bytes
+    /// Total: 6 + (29 * playerCount) bytes (Session 4: PlayerSnapshot now 29 bytes with isAlive)
     /// </summary>
     public static byte[] SerializeServerState(ServerStateUpdateMessage msg)
     {
@@ -117,22 +117,25 @@ public static class Serializer
 
     /// <summary>
     /// Serializes a PlayerSnapshot using an existing BinaryWriter
-    /// Format: [4 bytes: playerId][12 bytes: position][12 bytes: velocity]
-    /// Total: 28 bytes
+    /// Format: [4 bytes: playerId][12 bytes: position][12 bytes: velocity][1 byte: isAlive]
+    /// Total: 29 bytes (Session 4: added isAlive)
     /// </summary>
     private static void SerializePlayerSnapshot(BinaryWriter writer, PlayerSnapshot snapshot)
     {
         writer.Write(snapshot.playerId);
-        
+
         // Position (Vector3 = 3 floats)
         writer.Write(snapshot.position.x);
         writer.Write(snapshot.position.y);
         writer.Write(snapshot.position.z);
-        
+
         // Velocity (Vector3 = 3 floats)
         writer.Write(snapshot.velocity.x);
         writer.Write(snapshot.velocity.y);
         writer.Write(snapshot.velocity.z);
+
+        // Alive state (Session 4)
+        writer.Write(snapshot.isAlive);
     }
 
     /// <summary>
@@ -140,22 +143,24 @@ public static class Serializer
     /// </summary>
     private static PlayerSnapshot DeserializePlayerSnapshot(BinaryReader reader)
     {
-        PlayerSnapshot snapshot = new PlayerSnapshot();
-        snapshot.playerId = reader.ReadUInt32();
-        
+        uint playerId = reader.ReadUInt32();
+
         // Position
         float posX = reader.ReadSingle();
         float posY = reader.ReadSingle();
         float posZ = reader.ReadSingle();
-        snapshot.position = new Vector3(posX, posY, posZ);
-        
+        Vector3 position = new Vector3(posX, posY, posZ);
+
         // Velocity
         float velX = reader.ReadSingle();
         float velY = reader.ReadSingle();
         float velZ = reader.ReadSingle();
-        snapshot.velocity = new Vector3(velX, velY, velZ);
-        
-        return snapshot;
+        Vector3 velocity = new Vector3(velX, velY, velZ);
+
+        // Alive state (Session 4)
+        bool isAlive = reader.ReadBoolean();
+
+        return new PlayerSnapshot(playerId, position, velocity, isAlive);
     }
 
     #endregion
@@ -331,6 +336,110 @@ public static class Serializer
                 float hitY = reader.ReadSingle();
                 float hitZ = reader.ReadSingle();
                 msg.hitPosition = new Vector3(hitX, hitY, hitZ);
+
+                return msg;
+            }
+        }
+    }
+
+    #endregion
+
+    #region PlayerDeathMessage Serialization
+
+    /// <summary>
+    /// Serializes a PlayerDeathMessage to byte array
+    /// Format: [1 byte: type][4 bytes: playerId][12 bytes: deathPosition]
+    /// Total: 17 bytes
+    /// </summary>
+    public static byte[] SerializePlayerDeath(PlayerDeathMessage msg)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms))
+            {
+                writer.Write((byte)msg.messageType);
+                writer.Write(msg.playerId);
+
+                // Death position (Vector3 = 3 floats)
+                writer.Write(msg.deathPosition.x);
+                writer.Write(msg.deathPosition.y);
+                writer.Write(msg.deathPosition.z);
+
+                return ms.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deserializes byte array to PlayerDeathMessage
+    /// </summary>
+    public static PlayerDeathMessage DeserializePlayerDeath(byte[] data)
+    {
+        using (MemoryStream ms = new MemoryStream(data))
+        {
+            using (BinaryReader reader = new BinaryReader(ms))
+            {
+                PlayerDeathMessage msg = new PlayerDeathMessage();
+                msg.messageType = (MessageType)reader.ReadByte();
+                msg.playerId = reader.ReadUInt32();
+
+                // Death position
+                float deathX = reader.ReadSingle();
+                float deathY = reader.ReadSingle();
+                float deathZ = reader.ReadSingle();
+                msg.deathPosition = new Vector3(deathX, deathY, deathZ);
+
+                return msg;
+            }
+        }
+    }
+
+    #endregion
+
+    #region PlayerRespawnMessage Serialization
+
+    /// <summary>
+    /// Serializes a PlayerRespawnMessage to byte array
+    /// Format: [1 byte: type][4 bytes: playerId][12 bytes: respawnPosition]
+    /// Total: 17 bytes
+    /// </summary>
+    public static byte[] SerializePlayerRespawn(PlayerRespawnMessage msg)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms))
+            {
+                writer.Write((byte)msg.messageType);
+                writer.Write(msg.playerId);
+
+                // Respawn position (Vector3 = 3 floats)
+                writer.Write(msg.respawnPosition.x);
+                writer.Write(msg.respawnPosition.y);
+                writer.Write(msg.respawnPosition.z);
+
+                return ms.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deserializes byte array to PlayerRespawnMessage
+    /// </summary>
+    public static PlayerRespawnMessage DeserializePlayerRespawn(byte[] data)
+    {
+        using (MemoryStream ms = new MemoryStream(data))
+        {
+            using (BinaryReader reader = new BinaryReader(ms))
+            {
+                PlayerRespawnMessage msg = new PlayerRespawnMessage();
+                msg.messageType = (MessageType)reader.ReadByte();
+                msg.playerId = reader.ReadUInt32();
+
+                // Respawn position
+                float respawnX = reader.ReadSingle();
+                float respawnY = reader.ReadSingle();
+                float respawnZ = reader.ReadSingle();
+                msg.respawnPosition = new Vector3(respawnX, respawnY, respawnZ);
 
                 return msg;
             }

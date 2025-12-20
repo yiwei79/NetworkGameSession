@@ -10,7 +10,9 @@ public enum MessageType : byte
     Connect = 3,
     Disconnect = 4,
     ProjectileSpawn = 5,
-    ProjectileHit = 6
+    ProjectileHit = 6,
+    PlayerDeath = 7,
+    PlayerRespawn = 8
 }
 
 /// <summary>
@@ -59,19 +61,21 @@ public struct ServerStateUpdateMessage
 
 /// <summary>
 /// Snapshot of a single player's state at a specific moment
-/// Size: 4 + 12 + 12 = 28 bytes per player
+/// Size: 4 + 12 + 12 + 1 = 29 bytes per player (Session 4: added isAlive)
 /// </summary>
 public struct PlayerSnapshot
 {
     public uint playerId;
     public Vector3 position;
     public Vector3 velocity;
+    public bool isAlive;  // Session 4: Death/respawn state
 
-    public PlayerSnapshot(uint playerId, Vector3 position, Vector3 velocity)
+    public PlayerSnapshot(uint playerId, Vector3 position, Vector3 velocity, bool isAlive)
     {
         this.playerId = playerId;
         this.position = position;
         this.velocity = velocity;
+        this.isAlive = isAlive;
     }
 }
 
@@ -138,6 +142,44 @@ public struct ProjectileHitMessage
         this.projectileId = projectileId;
         this.targetPlayerId = targetPlayerId;
         this.hitPosition = hitPosition;
+    }
+}
+
+/// <summary>
+/// Player death message sent from server to clients
+/// Indicates a player has died (from projectile hit or boundary violation)
+/// Size: 1 + 4 + 12 = 17 bytes
+/// </summary>
+public struct PlayerDeathMessage
+{
+    public MessageType messageType;
+    public uint playerId;           // ID of player who died
+    public Vector3 deathPosition;   // Position where death occurred (for visual effects)
+
+    public PlayerDeathMessage(uint playerId, Vector3 deathPosition)
+    {
+        this.messageType = MessageType.PlayerDeath;
+        this.playerId = playerId;
+        this.deathPosition = deathPosition;
+    }
+}
+
+/// <summary>
+/// Player respawn message sent from server to clients
+/// Indicates a player has respawned after death timer
+/// Size: 1 + 4 + 12 = 17 bytes
+/// </summary>
+public struct PlayerRespawnMessage
+{
+    public MessageType messageType;
+    public uint playerId;           // ID of player who respawned
+    public Vector3 respawnPosition; // Position where player respawned
+
+    public PlayerRespawnMessage(uint playerId, Vector3 respawnPosition)
+    {
+        this.messageType = MessageType.PlayerRespawn;
+        this.playerId = playerId;
+        this.respawnPosition = respawnPosition;
     }
 }
 

@@ -46,6 +46,8 @@ public class GameNetworkManager : MonoBehaviour
     private Queue<ClientInputMessage> outgoingInputQueue;
     private Queue<ProjectileSpawnMessage> incomingProjectileQueue;
     private Queue<ProjectileHitMessage> incomingHitQueue;
+    private Queue<PlayerDeathMessage> incomingDeathQueue;
+    private Queue<PlayerRespawnMessage> incomingRespawnQueue;
 
     // Locks for thread safety
     private object inputQueueLock = new object();
@@ -53,6 +55,8 @@ public class GameNetworkManager : MonoBehaviour
     private object outgoingQueueLock = new object();
     private object projectileQueueLock = new object();
     private object hitQueueLock = new object();
+    private object deathQueueLock = new object();
+    private object respawnQueueLock = new object();
     
     // Connection tracking
     private Dictionary<string, uint> endpointToPlayerId;
@@ -77,6 +81,8 @@ public class GameNetworkManager : MonoBehaviour
         outgoingInputQueue = new Queue<ClientInputMessage>();
         incomingProjectileQueue = new Queue<ProjectileSpawnMessage>();
         incomingHitQueue = new Queue<ProjectileHitMessage>();
+        incomingDeathQueue = new Queue<PlayerDeathMessage>();
+        incomingRespawnQueue = new Queue<PlayerRespawnMessage>();
         connectedClients = new List<EndPoint>();
         endpointToPlayerId = new Dictionary<string, uint>();
         
@@ -276,6 +282,12 @@ public class GameNetworkManager : MonoBehaviour
 
         // Broadcast pending projectile hits
         BroadcastProjectileHits();
+
+        // Broadcast pending player deaths (Session 4)
+        BroadcastPlayerDeaths();
+
+        // Broadcast pending player respawns (Session 4)
+        BroadcastPlayerRespawns();
     }
 
     void BroadcastProjectileSpawns()
@@ -344,6 +356,76 @@ public class GameNetworkManager : MonoBehaviour
             lock (hitQueueLock)
             {
                 incomingHitQueue.Enqueue(hitMsg);
+            }
+        }
+    }
+
+    void BroadcastPlayerDeaths()
+    {
+        PlayerDeathMessage[] deaths = serverGameState.GetPendingDeathMessages();
+
+        if (deaths.Length == 0) return;
+
+        foreach (PlayerDeathMessage deathMsg in deaths)
+        {
+            byte[] data = Serializer.SerializePlayerDeath(deathMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send player death to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see deaths)
+            lock (deathQueueLock)
+            {
+                incomingDeathQueue.Enqueue(deathMsg);
+            }
+        }
+    }
+
+    void BroadcastPlayerRespawns()
+    {
+        PlayerRespawnMessage[] respawns = serverGameState.GetPendingRespawnMessages();
+
+        if (respawns.Length == 0) return;
+
+        foreach (PlayerRespawnMessage respawnMsg in respawns)
+        {
+            byte[] data = Serializer.SerializePlayerRespawn(respawnMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send player respawn to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see respawns)
+            lock (respawnQueueLock)
+            {
+                incomingRespawnQueue.Enqueue(respawnMsg);
             }
         }
     }
@@ -472,6 +554,26 @@ public class GameNetworkManager : MonoBehaviour
                     incomingHitQueue.Enqueue(hitMsg);
                 }
                 break;
+
+            case MessageType.PlayerDeath:
+                PlayerDeathMessage deathMsg = Serializer.DeserializePlayerDeath(data);
+
+                // Queue for main thread processing
+                lock (deathQueueLock)
+                {
+                    incomingDeathQueue.Enqueue(deathMsg);
+                }
+                break;
+
+            case MessageType.PlayerRespawn:
+                PlayerRespawnMessage respawnMsg = Serializer.DeserializePlayerRespawn(data);
+
+                // Queue for main thread processing
+                lock (respawnQueueLock)
+                {
+                    incomingRespawnQueue.Enqueue(respawnMsg);
+                }
+                break;
         }
     }
     
@@ -531,8 +633,30 @@ public class GameNetworkManager : MonoBehaviour
                 BroadcastProjectileHit(hitMsg);
             }
         }
+
+        // Process incoming player deaths on main thread (Session 4)
+        lock (deathQueueLock)
+        {
+            while (incomingDeathQueue.Count > 0)
+            {
+                PlayerDeathMessage deathMsg = incomingDeathQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastPlayerDeath(deathMsg);
+            }
+        }
+
+        // Process incoming player respawns on main thread (Session 4)
+        lock (respawnQueueLock)
+        {
+            while (incomingRespawnQueue.Count > 0)
+            {
+                PlayerRespawnMessage respawnMsg = incomingRespawnQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastPlayerRespawn(respawnMsg);
+            }
+        }
     }
-    
+
     #endregion
     
     #region Public API
@@ -593,6 +717,28 @@ public class GameNetworkManager : MonoBehaviour
     private void BroadcastProjectileHit(ProjectileHitMessage hitMsg)
     {
         OnProjectileHit?.Invoke(hitMsg);
+    }
+
+    /// <summary>
+    /// Event for player deaths received from server (Session 4)
+    /// </summary>
+    public delegate void PlayerDeathHandler(PlayerDeathMessage deathMsg);
+    public event PlayerDeathHandler OnPlayerDeath;
+
+    private void BroadcastPlayerDeath(PlayerDeathMessage deathMsg)
+    {
+        OnPlayerDeath?.Invoke(deathMsg);
+    }
+
+    /// <summary>
+    /// Event for player respawns received from server (Session 4)
+    /// </summary>
+    public delegate void PlayerRespawnHandler(PlayerRespawnMessage respawnMsg);
+    public event PlayerRespawnHandler OnPlayerRespawn;
+
+    private void BroadcastPlayerRespawn(PlayerRespawnMessage respawnMsg)
+    {
+        OnPlayerRespawn?.Invoke(respawnMsg);
     }
 
     /// <summary>

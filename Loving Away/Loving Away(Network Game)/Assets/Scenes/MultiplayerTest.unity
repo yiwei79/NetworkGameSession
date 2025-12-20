@@ -580,6 +580,8 @@ MonoBehaviour:
   serverTickRate: 20
   clientSendRate: 30
   localPlayerId: 0
+  enableSecondLocalPlayer: 1
+  secondLocalPlayerId: 1
 --- !u!4 &2003188099
 Transform:
   m_ObjectHideFlags: 0
@@ -609,9 +611,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SimplePlayerController
   networkManager: {fileID: 2003188098}
   playerPrefab: {fileID: 1119113440981656709, guid: 914961cfd6b4540bb85b3901e66783f2, type: 3}
+  projectilePrefab: {fileID: 0}
   localPlayerId: 0
   localPlayerColor: {r: 0, g: 1, b: 0, a: 1}
   remotePlayerColor: {r: 1, g: 0, b: 0, a: 1}
+  enableSecondLocalPlayer: 1
+  secondLocalPlayerId: 1
+  secondLocalPlayerColor: {r: 0, g: 0, b: 1, a: 1}
   showDebugUI: 1
   inputSendRate: 30
   enablePrediction: 1

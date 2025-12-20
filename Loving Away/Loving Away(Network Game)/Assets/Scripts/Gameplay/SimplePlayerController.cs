@@ -14,6 +14,7 @@ public class SimplePlayerController : MonoBehaviour
     public GameNetworkManager networkManager;
     public GameObject playerPrefab;
     public GameObject projectilePrefab; // Optional: if null, creates dynamically
+    public VisualEffectsManager visualEffectsManager; // Session 4.5: Visual effects
     
     [Header("Local Player Settings")]
     public uint localPlayerId = 0;
@@ -107,6 +108,18 @@ public class SimplePlayerController : MonoBehaviour
         networkManager.OnStateUpdate += HandleStateUpdate;
         networkManager.OnProjectileSpawn += HandleProjectileSpawn;
         networkManager.OnProjectileHit += HandleProjectileHit;
+        networkManager.OnPlayerDeath += HandlePlayerDeath;
+        networkManager.OnPlayerRespawn += HandlePlayerRespawn;
+
+        // Session 4.5: Auto-find VisualEffectsManager if not assigned
+        if (visualEffectsManager == null)
+        {
+            visualEffectsManager = FindFirstObjectByType<VisualEffectsManager>();
+            if (visualEffectsManager == null)
+            {
+                UnityEngine.Debug.LogWarning("[SimplePlayerController] No VisualEffectsManager found - visual effects disabled");
+            }
+        }
 
         lastStateUpdateTime = Time.time;
 
@@ -658,19 +671,88 @@ public class SimplePlayerController : MonoBehaviour
         if (isLocalPlayerHit)
         {
             UnityEngine.Debug.Log($"<color=yellow>[HIT!] You (Player {localPlayerId}) were hit by projectile {hitMsg.projectileId}!</color>");
-            // TODO (Session 4): Add visual feedback - screen shake, flash, sound effect
         }
         else if (isSecondPlayerHit)
         {
             UnityEngine.Debug.Log($"<color=cyan>[HIT!] Player {secondLocalPlayerId} was hit by projectile {hitMsg.projectileId}!</color>");
-            // TODO (Session 4): Add visual feedback for second player
         }
 
-        // TODO (Session 4): Spawn explosion/impact effect at hitMsg.hitPosition
+        // Session 4.5: Visual effects
+        if (visualEffectsManager != null)
+        {
+            // Spawn hit explosion at collision position
+            visualEffectsManager.PlayHitEffect(hitMsg.hitPosition);
+
+            // Screen shake for local players when hit
+            if (isLocalPlayerHit || isSecondPlayerHit)
+            {
+                visualEffectsManager.TriggerScreenShake();
+            }
+        }
+    }
+
+    void HandlePlayerDeath(PlayerDeathMessage deathMsg)
+    {
+        // Check if a local player died
+        bool isLocalPlayerDeath = (deathMsg.playerId == localPlayerId);
+        bool isSecondPlayerDeath = (enableSecondLocalPlayer && deathMsg.playerId == secondLocalPlayerId);
+
+        if (isLocalPlayerDeath)
+        {
+            UnityEngine.Debug.Log($"<color=red>☠ [DEATH!] You (Player {localPlayerId}) died at {deathMsg.deathPosition}! Respawning in 3 seconds...</color>");
+        }
+        else if (isSecondPlayerDeath)
+        {
+            UnityEngine.Debug.Log($"<color=magenta>☠ [DEATH!] Player {secondLocalPlayerId} died at {deathMsg.deathPosition}!</color>");
+        }
+        else
+        {
+            UnityEngine.Debug.Log($"[SimplePlayerController] Player {deathMsg.playerId} died at {deathMsg.deathPosition}");
+        }
+
+        // Session 4.5: Visual effects
+        if (visualEffectsManager != null)
+        {
+            // Spawn death particle effect
+            visualEffectsManager.PlayDeathEffect(deathMsg.deathPosition);
+
+            // Stronger screen shake for local player death
+            if (isLocalPlayerDeath || isSecondPlayerDeath)
+            {
+                visualEffectsManager.TriggerScreenShake(0.5f, 0.4f);
+            }
+        }
+    }
+
+    void HandlePlayerRespawn(PlayerRespawnMessage respawnMsg)
+    {
+        // Check if a local player respawned
+        bool isLocalPlayerRespawn = (respawnMsg.playerId == localPlayerId);
+        bool isSecondPlayerRespawn = (enableSecondLocalPlayer && respawnMsg.playerId == secondLocalPlayerId);
+
+        if (isLocalPlayerRespawn)
+        {
+            UnityEngine.Debug.Log($"<color=green>✨ [RESPAWN!] You (Player {localPlayerId}) respawned at {respawnMsg.respawnPosition}!</color>");
+        }
+        else if (isSecondPlayerRespawn)
+        {
+            UnityEngine.Debug.Log($"<color=lime>✨ [RESPAWN!] Player {secondLocalPlayerId} respawned at {respawnMsg.respawnPosition}!</color>");
+        }
+        else
+        {
+            UnityEngine.Debug.Log($"[SimplePlayerController] Player {respawnMsg.playerId} respawned at {respawnMsg.respawnPosition}");
+        }
+
+        // Session 4.5: Visual effects
+        if (visualEffectsManager != null)
+        {
+            // Spawn respawn particle effect (green/cyan upward sparkles)
+            visualEffectsManager.PlayRespawnEffect(respawnMsg.respawnPosition);
+        }
     }
 
     #endregion
-    
+
     #region Visual Feedback & Connection Management
     
     void UpdateVisualFeedback()

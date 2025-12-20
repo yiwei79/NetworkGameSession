@@ -2,8 +2,8 @@
 
 > **Deadline:** December 10, 2025
 > **Created:** 2025-11-20
-> **Last Updated:** 2025-12-14
-> **Status:** In Progress (Session 2 Complete)
+> **Last Updated:** 2025-12-20
+> **Status:** In Progress (Session 4 Complete - Core Gameplay Done)
 
 ---
 
@@ -16,11 +16,11 @@ Deliverable 4 implements **World State Replication** as defined in Lab Session 7
 | Requirement | Points | Status | How We Meet It |
 |-------------|--------|--------|----------------|
 | Explicit replication model (active/passive) | - | ✅ Done | Passive replication (server-authoritative) |
-| Replication packet with 3+ data types | 60% | ⏳ Partial | Position, velocity, ~~projectiles~~, ~~health~~ |
+| Replication packet with 3+ data types | 60% | ✅ Done | Position, velocity, isAlive, projectiles, death/respawn |
 | Explicit replication manager | - | ✅ Done | `GameNetworkManager.cs` + `ServerGameState.cs` |
 | Accept 2+ clients | - | ✅ Done | Supports 2-4 players |
 | All UDP communication | - | ✅ Done | No TCP in gameplay |
-| Playability (demo-able) | 10% | ⏳ Pending | Need projectile hit detection |
+| Playability (demo-able) | 10% | ✅ Done | Hit detection, knockback, death/respawn all working |
 | Code quality | 10% | ✅ Good | Clean, documented, organized |
 | Robustness/improvements | 20% | ✅ Good | Input delay fixes from D3 |
 
@@ -71,33 +71,61 @@ Beyond academic requirements, "Loving Away" needs:
 
 ---
 
-### Session 3: Hit Detection & Knockback 📋 PLANNED
+### Session 3: Hit Detection & Knockback ✅ COMPLETE
 
 **Goal:** Server-side collision detection and knockback physics
 
-**Tasks:**
-1. Add `ProjectileHitMessage` to protocol
-   - Fields: projectileId, targetPlayerId, hitPosition, knockbackForce
-2. Server tracks active projectiles (Dictionary)
-3. Each tick, check projectile-player collisions
-4. On hit: Queue knockback event, destroy projectile
-5. Client receives hit event, applies visual feedback (screen shake, flash)
-6. Knockback physics: Apply impulse to player velocity
+**What Was Done:**
+- Added `ProjectileHitMessage` (21 bytes) to protocol
+- Created `ServerProjectile` struct for server-side tracking
+- Implemented 3D collision detection (0.7u combined radius)
+- Knockback physics: 12 u/s impulse away from impact point
+- Event system for client-side hit notifications
 
-**New Files:** May need `ServerProjectile` struct for server-side tracking
+**Files Modified:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs
 
-**Files to Modify:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs
-
-**Estimated Time:** 3 hours
-
-**Success Criteria:**
-- Projectiles damage players on contact
-- Hit players are pushed backward
-- Both players see the hit effect
+**Documentation:** [SESSION_3_SUMMARY.md](SESSION_3_SUMMARY.md)
 
 ---
 
-### Session 4: Interpolation Buffer 📋 PLANNED
+### Session 4: Death/Respawn & Arena Boundaries ✅ COMPLETE
+
+**Goal:** Complete gameplay loop with death and respawn mechanics
+
+**What Was Done:**
+- Added `PlayerDeathMessage` (17 bytes) and `PlayerRespawnMessage` (17 bytes)
+- Death triggers: projectile hit + arena boundary violation (>15u from center)
+- 3-second respawn timer, spawn at valid position
+- Dead players can't move or shoot (server ignores input)
+- Updated `PlayerSnapshot` with `isAlive` field (28→29 bytes)
+- Client event handlers for death/respawn notifications
+
+**Files Modified:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs
+
+**Documentation:** [SESSION_4_SUMMARY.md](SESSION_4_SUMMARY.md)
+
+---
+
+### Session 4.5: Visual Effects ✅ COMPLETE
+
+**Goal:** Add visual feedback for hits, death, and respawn
+
+**What Was Done:**
+- Created `VisualEffectsManager.cs` with object pooling for particle effects
+- Implemented hit effect (yellow/orange explosion particles)
+- Implemented death effect (red particles)
+- Implemented respawn effect (green/cyan upward sparkles)
+- Added screen shake on hit and death (stronger on death)
+- All effects auto-return to pool after animation completes
+
+**Files Created:** VisualEffectsManager.cs (NEW)
+**Files Modified:** SimplePlayerController.cs
+
+**Documentation:** [SESSION_4.5_PLAN.md](SESSION_4.5_PLAN.md)
+
+---
+
+### Session 5: Interpolation Buffer 📋 PLANNED (Moved from Session 4)
 
 **Goal:** Smooth remote player rendering despite 20Hz updates
 
@@ -123,7 +151,7 @@ Beyond academic requirements, "Loving Away" needs:
 
 ---
 
-### Session 5: Charge Mechanic & Visual Polish 📋 PLANNED
+### Session 6: Charge Mechanic & Visual Polish 📋 PLANNED (Renumbered)
 
 **Goal:** Implement charge-based shooting (hold spacebar)
 
@@ -147,26 +175,10 @@ Beyond academic requirements, "Loving Away" needs:
 
 ---
 
-### Session 6: Arena Boundary & Death System 📋 PLANNED
+### ~~Session 6: Arena Boundary & Death System~~ ✅ MERGED INTO SESSION 4
 
-**Goal:** Complete gameplay loop with elimination
-
-**Tasks:**
-1. Define danger zone at arena edge (radius 14-15)
-2. Players in danger zone take continuous damage or instant elimination
-3. Add `PlayerDeathMessage` to protocol
-4. Server tracks player alive/dead state
-5. Respawn logic (optional for demo)
-6. Visual: Arena boundary indicator, death effect
-
-**Files to Modify:** NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs
-
-**Estimated Time:** 2 hours
-
-**Success Criteria:**
-- Players can be eliminated
-- Knockback can push into danger zone
-- Clear visual feedback for danger zone
+> This session's goals were combined with Session 4 (Death/Respawn & Arena Boundaries).
+> See [SESSION_4_SUMMARY.md](SESSION_4_SUMMARY.md) for implementation details.
 
 ---
 

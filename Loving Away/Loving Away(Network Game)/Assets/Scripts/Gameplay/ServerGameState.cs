@@ -33,13 +33,20 @@ public class ServerGameState
     // Hit detection parameters
     private float collisionRadius = 0.7f; // Combined projectile (0.2) + player (0.5) radius
     private float knockbackForce = 12.0f; // Units per second
-    
+
+    // Death/respawn system
+    private Queue<PlayerDeathMessage> pendingDeathMessages;
+    private Queue<PlayerRespawnMessage> pendingRespawnMessages;
+    private float respawnDelay = 3.0f; // 3 seconds to respawn
+
     public ServerGameState()
     {
         players = new Dictionary<uint, PlayerState>();
         serverTime = 0f;
         pendingProjectileSpawns = new Queue<ProjectileSpawnMessage>();
         pendingHitMessages = new Queue<ProjectileHitMessage>();
+        pendingDeathMessages = new Queue<PlayerDeathMessage>();
+        pendingRespawnMessages = new Queue<PlayerRespawnMessage>();
         activeProjectiles = new Dictionary<uint, ServerProjectile>();
         lastShootTime = new Dictionary<uint, float>();
     }
@@ -58,7 +65,10 @@ public class ServerGameState
                 playerId = playerId,
                 position = GetSpawnPosition(playerId),
                 velocity = Vector3.zero,
-                facingDirection = new Vector3(0, 0, 1) // Default facing forward (positive Z)
+                facingDirection = new Vector3(0, 0, 1), // Default facing forward (positive Z)
+                isAlive = true,
+                deathTime = 0f,
+                respawnTime = 0f
             };
 
             players[playerId] = newPlayer;
@@ -111,12 +121,18 @@ public class ServerGameState
         }
         
         PlayerState player = players[input.playerId];
-        
+
+        // Dead players can't move or shoot (Session 4)
+        if (!player.isAlive)
+        {
+            return;
+        }
+
         // Store the latest input - it will be applied during UpdateState with proper deltaTime
         // This prevents input processing from being frame-rate dependent
         player.currentInput = input.moveDirection;
         player.isShootPressed = input.shootButton;
-        
+
         players[input.playerId] = player;
     }
     
@@ -179,20 +195,18 @@ public class ServerGameState
             
             // Update position based on velocity (frame-rate independent)
             player.position += player.velocity * deltaTime;
-            
-            // Apply basic boundary constraints (keep players in arena)
+
+            // Arena boundary death (Session 4)
             float arenaRadius = 15f;
             Vector3 positionXZ = new Vector3(player.position.x, 0, player.position.z);
-            if (positionXZ.magnitude > arenaRadius)
+            float distanceFromCenter = positionXZ.magnitude;
+
+            if (player.isAlive && distanceFromCenter > arenaRadius)
             {
-                // Push player back inside arena
-                positionXZ = positionXZ.normalized * arenaRadius;
-                player.position = new Vector3(positionXZ.x, player.position.y, positionXZ.z);
-                
-                // Reduce velocity when hitting boundary
-                player.velocity *= 0.5f;
+                // Player crossed boundary - trigger death
+                TriggerPlayerDeath(player.playerId, player.position);
             }
-            
+
             // Keep player at ground level
             player.position.y = 0.5f;
 
@@ -213,6 +227,9 @@ public class ServerGameState
 
         // Check projectile collisions after all player positions updated
         CheckProjectileCollisions();
+
+        // Check if any dead players should respawn (Session 4)
+        CheckRespawns();
     }
 
     #endregion
@@ -394,6 +411,9 @@ public class ServerGameState
                     );
                     pendingHitMessages.Enqueue(hitMsg);
 
+                    // Trigger player death (Session 4)
+                    TriggerPlayerDeath(player.playerId, projectilePosition);
+
                     // Mark projectile for removal
                     projectilesToRemove.Add(projectile.projectileId);
 
@@ -408,6 +428,118 @@ public class ServerGameState
         {
             activeProjectiles.Remove(projectileId);
         }
+    }
+
+    #endregion
+
+    #region Death/Respawn System
+
+    /// <summary>
+    /// Triggers player death and queues death message
+    /// </summary>
+    private void TriggerPlayerDeath(uint playerId, Vector3 deathPosition)
+    {
+        if (!players.ContainsKey(playerId))
+        {
+            return;
+        }
+
+        PlayerState player = players[playerId];
+
+        // Check if player is already dead (prevent double death)
+        if (!player.isAlive)
+        {
+            return;
+        }
+
+        // Mark player as dead
+        player.isAlive = false;
+        player.deathTime = serverTime;
+        player.respawnTime = serverTime + respawnDelay;
+        player.velocity = Vector3.zero; // Freeze movement
+
+        players[playerId] = player;
+
+        // Queue death message for clients
+        PlayerDeathMessage deathMsg = new PlayerDeathMessage(playerId, deathPosition);
+        pendingDeathMessages.Enqueue(deathMsg);
+
+        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} died at {deathPosition}. Respawn in {respawnDelay}s");
+    }
+
+    /// <summary>
+    /// Respawns a dead player at a valid spawn position
+    /// </summary>
+    private void RespawnPlayer(uint playerId)
+    {
+        if (!players.ContainsKey(playerId))
+        {
+            return;
+        }
+
+        PlayerState player = players[playerId];
+
+        // Set player to alive
+        player.isAlive = true;
+        player.position = GetSpawnPosition(playerId);
+        player.velocity = Vector3.zero;
+        player.deathTime = 0f;
+        player.respawnTime = 0f;
+
+        players[playerId] = player;
+
+        // Queue respawn message for clients
+        PlayerRespawnMessage respawnMsg = new PlayerRespawnMessage(playerId, player.position);
+        pendingRespawnMessages.Enqueue(respawnMsg);
+
+        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} respawned at {player.position}");
+    }
+
+    /// <summary>
+    /// Checks if any dead players should respawn
+    /// Called every tick from UpdateState()
+    /// </summary>
+    private void CheckRespawns()
+    {
+        List<uint> playerIds = new List<uint>(players.Keys);
+
+        foreach (uint playerId in playerIds)
+        {
+            if (!players.ContainsKey(playerId))
+            {
+                continue;
+            }
+
+            PlayerState player = players[playerId];
+
+            // Check if dead player can respawn
+            if (!player.isAlive && serverTime >= player.respawnTime)
+            {
+                RespawnPlayer(playerId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets all pending death messages and clears the queue
+    /// Called by GameNetworkManager to broadcast deaths to clients
+    /// </summary>
+    public PlayerDeathMessage[] GetPendingDeathMessages()
+    {
+        PlayerDeathMessage[] deaths = pendingDeathMessages.ToArray();
+        pendingDeathMessages.Clear();
+        return deaths;
+    }
+
+    /// <summary>
+    /// Gets all pending respawn messages and clears the queue
+    /// Called by GameNetworkManager to broadcast respawns to clients
+    /// </summary>
+    public PlayerRespawnMessage[] GetPendingRespawnMessages()
+    {
+        PlayerRespawnMessage[] respawns = pendingRespawnMessages.ToArray();
+        pendingRespawnMessages.Clear();
+        return respawns;
     }
 
     #endregion
@@ -436,7 +568,8 @@ public class ServerGameState
             snapshots[index] = new PlayerSnapshot(
                 player.playerId,
                 player.position,
-                player.velocity
+                player.velocity,
+                player.isAlive  // Session 4: Include alive state
             );
             index++;
         }
@@ -466,6 +599,11 @@ public struct PlayerState
     public Vector3 facingDirection; // Last movement direction (for shooting when stationary)
     public bool isShootPressed;
     public Vector2 currentInput; // Latest input from client (stored, applied during UpdateState)
+
+    // Death/respawn tracking
+    public bool isAlive;
+    public float deathTime;     // Server timestamp when player died (0 if alive)
+    public float respawnTime;   // Server timestamp when player can respawn
 }
 
 /// <summary>
