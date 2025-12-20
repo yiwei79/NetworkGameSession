@@ -86,10 +86,8 @@ public class ArenaSetup : MonoBehaviour
                 }
                 else
                 {
-                    // Create simple colored material
-                    Material mat = new Material(Shader.Find("Standard"));
-                    mat.color = groundColor;
-                    renderer.material = mat;
+                    // Use existing material and just set color (avoids shader issues)
+                    renderer.material.color = groundColor;
                 }
             }
 
@@ -119,10 +117,9 @@ public class ArenaSetup : MonoBehaviour
         lineRenderer.loop = true;
         lineRenderer.useWorldSpace = false;
 
-        // Set material and color
-        Material mat = new Material(Shader.Find("Sprites/Default"));
-        mat.color = boundaryRingColor;
-        lineRenderer.material = mat;
+        // Set material and color (use default LineRenderer material)
+        lineRenderer.startColor = boundaryRingColor;
+        lineRenderer.endColor = boundaryRingColor;
 
         // Generate circle points
         int segments = 64;
@@ -196,9 +193,10 @@ public class ArenaSetup : MonoBehaviour
         trunk.transform.localScale = new Vector3(0.3f, 1f, 0.3f);
 
         Renderer trunkRenderer = trunk.GetComponent<Renderer>();
-        Material trunkMat = new Material(Shader.Find("Standard"));
-        trunkMat.color = new Color(0.4f, 0.25f, 0.1f); // Brown
-        trunkRenderer.material = trunkMat;
+        if (trunkRenderer != null && trunkRenderer.material != null)
+        {
+            trunkRenderer.material.color = new Color(0.4f, 0.25f, 0.1f); // Brown
+        }
 
         // Foliage (green sphere)
         GameObject foliage = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -208,9 +206,10 @@ public class ArenaSetup : MonoBehaviour
         foliage.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
 
         Renderer foliageRenderer = foliage.GetComponent<Renderer>();
-        Material foliageMat = new Material(Shader.Find("Standard"));
-        foliageMat.color = new Color(0.2f, 0.5f, 0.2f); // Dark green
-        foliageRenderer.material = foliageMat;
+        if (foliageRenderer != null && foliageRenderer.material != null)
+        {
+            foliageRenderer.material.color = new Color(0.2f, 0.5f, 0.2f); // Dark green
+        }
 
         // Remove colliders (decorations are visual only)
         Destroy(trunk.GetComponent<Collider>());
@@ -248,11 +247,12 @@ public class ArenaSetup : MonoBehaviour
             Random.Range(0f, 30f)
         );
 
-        // Gray material
+        // Gray material (use existing material from primitive)
         Renderer renderer = rock.GetComponent<Renderer>();
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(0.5f, 0.5f, 0.5f); // Gray
-        renderer.material = mat;
+        if (renderer != null && renderer.material != null)
+        {
+            renderer.material.color = new Color(0.5f, 0.5f, 0.5f); // Gray
+        }
 
         // Remove collider
         Destroy(rock.GetComponent<Collider>());
@@ -287,9 +287,10 @@ public class ArenaSetup : MonoBehaviour
         stem.transform.localScale = new Vector3(0.15f, 0.2f, 0.15f);
 
         Renderer stemRenderer = stem.GetComponent<Renderer>();
-        Material stemMat = new Material(Shader.Find("Standard"));
-        stemMat.color = new Color(0.95f, 0.95f, 0.9f); // Cream
-        stemRenderer.material = stemMat;
+        if (stemRenderer != null && stemRenderer.material != null)
+        {
+            stemRenderer.material.color = new Color(0.95f, 0.95f, 0.9f); // Cream
+        }
 
         // Cap (red sphere, slightly flattened)
         GameObject cap = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -299,9 +300,10 @@ public class ArenaSetup : MonoBehaviour
         cap.transform.localScale = new Vector3(0.5f, 0.3f, 0.5f);
 
         Renderer capRenderer = cap.GetComponent<Renderer>();
-        Material capMat = new Material(Shader.Find("Standard"));
-        capMat.color = new Color(0.8f, 0.2f, 0.2f); // Red
-        capRenderer.material = capMat;
+        if (capRenderer != null && capRenderer.material != null)
+        {
+            capRenderer.material.color = new Color(0.8f, 0.2f, 0.2f); // Red
+        }
 
         // Remove colliders
         Destroy(stem.GetComponent<Collider>());

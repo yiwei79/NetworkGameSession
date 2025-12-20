@@ -47,6 +47,17 @@ public class SimplePlayerController : MonoBehaviour
     private Vector2 secondPlayerInput;
     private bool secondPlayerShootPressed;
 
+    // Phase 2: Charge mechanic state (Player 1)
+    private bool wasShootingLastFrame = false;
+    private float chargeStartTime = 0f;
+    private float currentChargeValue = 0f;  // 0.0-1.0
+    private const float maxChargeTime = 2f; // 2 seconds to full charge
+
+    // Phase 2: Charge mechanic state (Player 2)
+    private bool wasSecondPlayerShootingLastFrame = false;
+    private float secondPlayerChargeStartTime = 0f;
+    private float secondPlayerChargeValue = 0f;
+
     // Input rate limiting (FIX 1: Prevent input over-queuing)
     [Header("Network Settings")]
     public float inputSendRate = 30f; // Hz - how many times per second to send input
@@ -179,8 +190,35 @@ public class SimplePlayerController : MonoBehaviour
                 currentInput.Normalize();
             }
 
-            // Collect shoot button (Spacebar)
-            shootButtonPressed = keyboard.spaceKey.isPressed;
+            // Phase 2: Charge detection (Spacebar)
+            bool shootNow = keyboard.spaceKey.isPressed;
+
+            if (shootNow && !wasShootingLastFrame)
+            {
+                // Just pressed - start charging
+                chargeStartTime = Time.time;
+                currentChargeValue = 0f;
+            }
+            else if (shootNow && wasShootingLastFrame)
+            {
+                // Still holding - update charge
+                float chargeTime = Time.time - chargeStartTime;
+                currentChargeValue = Mathf.Clamp01(chargeTime / maxChargeTime);
+            }
+            else if (!shootNow && wasShootingLastFrame)
+            {
+                // Just released - finalize charge (this is when we shoot)
+                float chargeTime = Time.time - chargeStartTime;
+                currentChargeValue = Mathf.Clamp01(chargeTime / maxChargeTime);
+            }
+            else
+            {
+                // Not pressing - reset charge
+                currentChargeValue = 0f;
+            }
+
+            shootButtonPressed = shootNow;
+            wasShootingLastFrame = shootNow;
 
             // ===== PLAYER 2: Arrow Keys + Right Shift =====
             if (enableSecondLocalPlayer)
@@ -201,8 +239,35 @@ public class SimplePlayerController : MonoBehaviour
                     secondPlayerInput.Normalize();
                 }
 
-                // Collect shoot button (Right Shift)
-                secondPlayerShootPressed = keyboard.rightShiftKey.isPressed;
+                // Phase 2: Charge detection (Right Shift)
+                bool secondShootNow = keyboard.rightShiftKey.isPressed;
+
+                if (secondShootNow && !wasSecondPlayerShootingLastFrame)
+                {
+                    // Just pressed - start charging
+                    secondPlayerChargeStartTime = Time.time;
+                    secondPlayerChargeValue = 0f;
+                }
+                else if (secondShootNow && wasSecondPlayerShootingLastFrame)
+                {
+                    // Still holding - update charge
+                    float chargeTime = Time.time - secondPlayerChargeStartTime;
+                    secondPlayerChargeValue = Mathf.Clamp01(chargeTime / maxChargeTime);
+                }
+                else if (!secondShootNow && wasSecondPlayerShootingLastFrame)
+                {
+                    // Just released - finalize charge (this is when we shoot)
+                    float chargeTime = Time.time - secondPlayerChargeStartTime;
+                    secondPlayerChargeValue = Mathf.Clamp01(chargeTime / maxChargeTime);
+                }
+                else
+                {
+                    // Not pressing - reset charge
+                    secondPlayerChargeValue = 0f;
+                }
+
+                secondPlayerShootPressed = secondShootNow;
+                wasSecondPlayerShootingLastFrame = secondShootNow;
             }
         }
         else
@@ -224,13 +289,13 @@ public class SimplePlayerController : MonoBehaviour
 
         if (timeSinceLastSend >= sendInterval)
         {
-            // Send Player 1 input to network manager
-            networkManager.SendInput(currentInput, shootButtonPressed);
+            // Phase 2: Send Player 1 input with charge value
+            networkManager.SendInput(currentInput, shootButtonPressed, currentChargeValue);
 
-            // Send Player 2 input if enabled
+            // Phase 2: Send Player 2 input with charge value if enabled
             if (enableSecondLocalPlayer)
             {
-                networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed);
+                networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed, secondPlayerChargeValue);
             }
 
             lastInputSendTime = Time.time;
@@ -436,26 +501,9 @@ public class SimplePlayerController : MonoBehaviour
                 playerObj.transform.position = snapshot.position;
             }
 
-            // Session 5A: Update visual controller with facing direction and alive state
-            if (playerVisualControllers.ContainsKey(snapshot.playerId))
-            {
-                PlayerVisualController visualController = playerVisualControllers[snapshot.playerId];
-                if (visualController != null)
-                {
-                    // Set facing direction based on velocity
-                    if (snapshot.velocity.magnitude > 0.1f)
-                    {
-                        visualController.SetFacingDirection(snapshot.velocity.normalized);
-                    }
-
-                    // Set alive state
-                    visualController.SetAliveState(snapshot.isAlive);
-                }
-            }
-
-            // Legacy rotation code (kept for backward compatibility if not using PlayerVisualController)
-            // This will be removed once visual controller is fully integrated
-            if (!playerVisualControllers.ContainsKey(snapshot.playerId) && snapshot.velocity.magnitude > 0.1f)
+            // CRITICAL FIX: Player GameObject MUST rotate for shooting/knockback to work
+            // The PlayerVisualController is just for enhanced visuals, doesn't replace core rotation
+            if (snapshot.velocity.magnitude > 0.1f)
             {
                 Vector3 lookDirection = snapshot.velocity.normalized;
                 Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
@@ -464,6 +512,17 @@ public class SimplePlayerController : MonoBehaviour
                     targetRotation,
                     Time.deltaTime * 10f
                 );
+            }
+
+            // Session 5A: Update visual controller for alive state (rotation inherited from parent)
+            if (playerVisualControllers.ContainsKey(snapshot.playerId))
+            {
+                PlayerVisualController visualController = playerVisualControllers[snapshot.playerId];
+                if (visualController != null)
+                {
+                    // Only update alive state - rotation is inherited from parent GameObject
+                    visualController.SetAliveState(snapshot.isAlive);
+                }
             }
         }
     }

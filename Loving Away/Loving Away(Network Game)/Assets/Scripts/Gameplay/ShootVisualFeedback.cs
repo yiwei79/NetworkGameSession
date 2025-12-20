@@ -26,16 +26,32 @@ public class ShootVisualFeedback : MonoBehaviour
     
     void Start()
     {
-        // Get player renderer
-        playerRenderer = GetComponent<Renderer>();
+        // Phase 2: Get player body renderer from PlayerVisualController
+        // Look for "Body" GameObject under VisualModel
+        Transform visualModel = transform.Find("VisualModel");
+        if (visualModel != null)
+        {
+            Transform body = visualModel.Find("Body");
+            if (body != null)
+            {
+                playerRenderer = body.GetComponent<Renderer>();
+            }
+        }
+
+        // Fallback: try to get renderer from root (backward compatibility)
+        if (playerRenderer == null)
+        {
+            playerRenderer = GetComponent<Renderer>();
+        }
+
         if (playerRenderer != null)
         {
             originalColor = playerRenderer.material.color;
         }
-        
+
         // Create charge indicator (sphere that grows while charging)
         CreateChargeIndicator();
-        
+
         // Create muzzle flash
         CreateMuzzleFlash();
     }
@@ -47,21 +63,25 @@ public class ShootVisualFeedback : MonoBehaviour
         chargeIndicator.transform.SetParent(transform);
         chargeIndicator.transform.localPosition = Vector3.zero;
         chargeIndicator.transform.localScale = Vector3.zero;
-        
-        // Make it semi-transparent
+
+        // Phase 2: Use existing material to avoid shader issues
         Renderer renderer = chargeIndicator.GetComponent<Renderer>();
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(chargeColor.r, chargeColor.g, chargeColor.b, 0.5f);
-        mat.SetFloat("_Mode", 3); // Transparent mode
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
-        mat.DisableKeyword("_ALPHATEST_ON");
-        mat.EnableKeyword("_ALPHABLEND_ON");
-        mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        mat.renderQueue = 3000;
-        renderer.material = mat;
-        
+        if (renderer != null && renderer.material != null)
+        {
+            // Set color directly on existing material
+            renderer.material.color = new Color(chargeColor.r, chargeColor.g, chargeColor.b, 0.5f);
+
+            // Try to set transparency mode (may not work in all pipelines, but won't cause pink)
+            renderer.material.SetFloat("_Mode", 3);
+            renderer.material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            renderer.material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            renderer.material.SetInt("_ZWrite", 0);
+            renderer.material.DisableKeyword("_ALPHATEST_ON");
+            renderer.material.EnableKeyword("_ALPHABLEND_ON");
+            renderer.material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            renderer.material.renderQueue = 3000;
+        }
+
         // Remove collider
         Destroy(chargeIndicator.GetComponent<Collider>());
     }
@@ -73,16 +93,17 @@ public class ShootVisualFeedback : MonoBehaviour
         muzzleFlash.transform.SetParent(transform);
         muzzleFlash.transform.localPosition = new Vector3(0, 0, 1.5f); // In front of player
         muzzleFlash.transform.localScale = Vector3.zero;
-        
-        // Bright white material
+
+        // Phase 2: Use existing material to avoid shader issues
         Renderer renderer = muzzleFlash.GetComponent<Renderer>();
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = shootFlashColor;
-        mat.SetFloat("_Mode", 3);
-        mat.EnableKeyword("_EMISSION");
-        mat.SetColor("_EmissionColor", shootFlashColor * 2f);
-        renderer.material = mat;
-        
+        if (renderer != null && renderer.material != null)
+        {
+            renderer.material.color = shootFlashColor;
+            // Try to set emission (may not work in all pipelines)
+            renderer.material.EnableKeyword("_EMISSION");
+            renderer.material.SetColor("_EmissionColor", shootFlashColor * 2f);
+        }
+
         // Remove collider
         Destroy(muzzleFlash.GetComponent<Collider>());
     }

@@ -18,7 +18,7 @@ public enum MessageType : byte
 /// <summary>
 /// Client input message sent from client to server
 /// Contains player input commands (WASD movement and shoot button)
-/// Size: 1 + 4 + 4 + 8 + 1 = 18 bytes (FIX 3: Added sequenceNumber)
+/// Size: 1 + 4 + 4 + 8 + 1 + 4 = 22 bytes (Phase 2: Added chargeValue for charge-to-shoot mechanic)
 /// </summary>
 public struct ClientInputMessage
 {
@@ -26,15 +26,17 @@ public struct ClientInputMessage
     public uint playerId;
     public uint sequenceNumber;    // FIX 3: Sequence number for tracking inputs
     public Vector2 moveDirection;  // Normalized input vector (x, y)
-    public bool shootButton;       // Is shoot button pressed
+    public bool shootButton;       // Is shoot button pressed (now means "is charging")
+    public float chargeValue;      // Phase 2: Charge amount 0.0-1.0 (0s = 0.0, 2s = 1.0)
 
-    public ClientInputMessage(uint playerId, uint sequenceNumber, Vector2 moveDirection, bool shootButton)
+    public ClientInputMessage(uint playerId, uint sequenceNumber, Vector2 moveDirection, bool shootButton, float chargeValue)
     {
         this.messageType = MessageType.ClientInput;
         this.playerId = playerId;
         this.sequenceNumber = sequenceNumber;
         this.moveDirection = moveDirection;
         this.shootButton = shootButton;
+        this.chargeValue = chargeValue;
     }
 }
 

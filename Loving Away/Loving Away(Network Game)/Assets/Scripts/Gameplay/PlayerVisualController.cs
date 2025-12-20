@@ -80,11 +80,12 @@ public class PlayerVisualController : MonoBehaviour
         bodyObject.transform.localPosition = new Vector3(0f, 0.5f, 0f); // Center at 0.5 units high
         bodyObject.transform.localScale = new Vector3(0.4f, 0.5f, 0.4f); // Half-height for 1.0 total
 
-        // Apply body color
+        // Apply body color (use existing material to avoid shader issues)
         Renderer bodyRenderer = bodyObject.GetComponent<Renderer>();
-        Material bodyMat = new Material(Shader.Find("Standard"));
-        bodyMat.color = bodyColor;
-        bodyRenderer.material = bodyMat;
+        if (bodyRenderer != null && bodyRenderer.material != null)
+        {
+            bodyRenderer.material.color = bodyColor;
+        }
 
         // Remove collider (SimplePlayerController handles physics/collision)
         Destroy(bodyObject.GetComponent<Collider>());
@@ -96,11 +97,12 @@ public class PlayerVisualController : MonoBehaviour
         headObject.transform.localPosition = new Vector3(0f, 1.2f, 0f); // Above body
         headObject.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
 
-        // Apply head color (slightly brighter than body)
+        // Apply head color (slightly brighter than body, use existing material)
         Renderer headRenderer = headObject.GetComponent<Renderer>();
-        Material headMat = new Material(Shader.Find("Standard"));
-        headMat.color = headColor;
-        headRenderer.material = headMat;
+        if (headRenderer != null && headRenderer.material != null)
+        {
+            headRenderer.material.color = headColor;
+        }
 
         // Remove collider
         Destroy(headObject.GetComponent<Collider>());
@@ -112,31 +114,28 @@ public class PlayerVisualController : MonoBehaviour
         eyeObject.transform.localPosition = new Vector3(0f, 0.05f, 0.3f); // Front of head
         eyeObject.transform.localScale = new Vector3(0.23f, 0.23f, 0.23f); // 0.08 / 0.35 = 0.23
 
-        // Apply eye color (white)
+        // Apply eye color (white, use existing material)
         Renderer eyeRenderer = eyeObject.GetComponent<Renderer>();
-        Material eyeMat = new Material(Shader.Find("Standard"));
-        eyeMat.color = Color.white;
-        eyeMat.SetFloat("_Metallic", 0f);
-        eyeMat.SetFloat("_Glossiness", 0.8f); // Slightly shiny
-        eyeRenderer.material = eyeMat;
+        if (eyeRenderer != null && eyeRenderer.material != null)
+        {
+            eyeRenderer.material.color = Color.white;
+        }
 
         // Remove collider
         Destroy(eyeObject.GetComponent<Collider>());
     }
 
     /// <summary>
-    /// Updates the facing direction and rotates the visual model accordingly
+    /// Updates the facing direction (NOTE: Rotation is now handled by parent GameObject)
+    /// This method is kept for future use if we need visual-only rotation effects
     /// </summary>
     public void SetFacingDirection(Vector3 direction)
     {
         if (direction.magnitude > 0.1f)
         {
             facingDirection = direction.normalized;
-            if (visualRoot != null)
-            {
-                // Rotate to face the direction
-                visualRoot.rotation = Quaternion.LookRotation(facingDirection);
-            }
+            // NOTE: Do NOT rotate visualRoot here - parent GameObject handles rotation
+            // VisualRoot inherits rotation from parent, which is critical for shooting/knockback
         }
     }
 

@@ -544,6 +544,133 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1507315509
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1507315511}
+  - component: {fileID: 1507315510}
+  m_Layer: 0
+  m_Name: ArenaSetup
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1507315510
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507315509}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab42e8e8529c84ddd9fbcb11b2bc8a74, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaSetup
+  arenaRadius: 15
+  groundPrefab: {fileID: 0}
+  groundMaterial: {fileID: 0}
+  groundColor: {r: 0.4, g: 0.6, b: 0.3, a: 1}
+  showBoundaryRing: 1
+  boundaryRingColor: {r: 1, g: 0.5, b: 0, a: 0.8}
+  boundaryRingWidth: 0.2
+  generateDecorations: 1
+  decorationMinRadius: 16
+  decorationMaxRadius: 22
+  treeCount: 8
+  treePrefabs: []
+  rockCount: 12
+  rockPrefabs: []
+  mushroomCount: 6
+  mushroomPrefabs: []
+--- !u!4 &1507315511
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507315509}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -6.9835, y: 0, z: -5.47101}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1541188850
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1541188852}
+  - component: {fileID: 1541188851}
+  m_Layer: 0
+  m_Name: VisualEffectManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1541188851
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1541188850}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34a2e90caf04f411a8445448d8931b1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VisualEffectsManager
+  hitEffectPoolSize: 10
+  deathEffectPoolSize: 5
+  respawnEffectPoolSize: 5
+  hitColorStart: {r: 1, g: 0.9, b: 0.2, a: 1}
+  hitColorEnd: {r: 1, g: 0.5, b: 0.1, a: 0}
+  hitDuration: 0.5
+  hitParticleCount: 30
+  hitParticleSpeed: 5
+  hitParticleSize: 0.15
+  deathColorStart: {r: 1, g: 0.2, b: 0.1, a: 1}
+  deathColorEnd: {r: 0.5, g: 0.1, b: 0.1, a: 0}
+  deathDuration: 1
+  deathParticleCount: 50
+  deathParticleSpeed: 4
+  deathParticleSize: 0.25
+  respawnColorStart: {r: 0.2, g: 1, b: 0.4, a: 1}
+  respawnColorEnd: {r: 0.3, g: 1, b: 1, a: 0}
+  respawnDuration: 0.8
+  respawnParticleCount: 40
+  respawnParticleSpeed: 2
+  respawnParticleSize: 0.12
+  defaultShakeIntensity: 0.3
+  defaultShakeDuration: 0.2
+--- !u!4 &1541188852
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1541188850}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.67819, y: 0, z: -9.39009}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2003188097
 GameObject:
   m_ObjectHideFlags: 0
@@ -612,6 +739,7 @@ MonoBehaviour:
   networkManager: {fileID: 2003188098}
   playerPrefab: {fileID: 1119113440981656709, guid: 914961cfd6b4540bb85b3901e66783f2, type: 3}
   projectilePrefab: {fileID: 0}
+  visualEffectsManager: {fileID: 0}
   localPlayerId: 0
   localPlayerColor: {r: 0, g: 1, b: 0, a: 1}
   remotePlayerColor: {r: 1, g: 0, b: 0, a: 1}
@@ -631,3 +759,5 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 797082099}
   - {fileID: 2003188099}
+  - {fileID: 1507315511}
+  - {fileID: 1541188852}

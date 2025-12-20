@@ -132,6 +132,7 @@ public class ServerGameState
         // This prevents input processing from being frame-rate dependent
         player.currentInput = input.moveDirection;
         player.isShootPressed = input.shootButton;
+        player.chargeValue = input.chargeValue; // Phase 2: Store charge for projectile scaling
 
         players[input.playerId] = player;
     }
@@ -210,14 +211,14 @@ public class ServerGameState
             // Keep player at ground level
             player.position.y = 0.5f;
 
-            // Handle shooting
+            // Handle shooting (Phase 2: Pass chargeValue for trajectory scaling)
             if (player.isShootPressed)
             {
                 // Check cooldown
                 float timeSinceLastShot = serverTime - GetLastShootTime(playerId);
                 if (timeSinceLastShot >= projectileCooldown)
                 {
-                    SpawnProjectile(playerId, player.position, player.facingDirection);
+                    SpawnProjectile(playerId, player.position, player.facingDirection, player.chargeValue);
                     lastShootTime[playerId] = serverTime;
                 }
             }
@@ -238,8 +239,9 @@ public class ServerGameState
 
     /// <summary>
     /// Spawns a projectile from a player with arc trajectory
+    /// Phase 2: Scales range, arc height, and speed based on chargeValue (0.0-1.0)
     /// </summary>
-    private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 facingDirection)
+    private void SpawnProjectile(uint playerId, Vector3 playerPosition, Vector3 facingDirection, float chargeValue)
     {
         uint projectileId = nextProjectileId++;
 
@@ -255,15 +257,20 @@ public class ServerGameState
             shootDirection = new Vector3(0, 0, 1);
         }
 
+        // Phase 2: Scale projectile parameters based on charge (0.0-1.0)
+        float scaledRange = Mathf.Lerp(5f, 20f, chargeValue);      // 5u → 20u
+        float scaledArcHeight = Mathf.Lerp(2f, 6f, chargeValue);   // 2u → 6u
+        float scaledSpeed = Mathf.Lerp(12f, 18f, chargeValue);     // 12u/s → 18u/s
+
         // Calculate target position (where projectile lands)
-        Vector3 targetPosition = playerPosition + shootDirection * projectileRange;
+        Vector3 targetPosition = playerPosition + shootDirection * scaledRange;
         targetPosition.y = 0.5f; // Land at ground level
 
-        // Calculate flight time based on range and speed
-        float flightTime = projectileRange / projectileSpeed;
+        // Calculate flight time based on scaled range and speed
+        float flightTime = scaledRange / scaledSpeed;
 
         // Set projectile velocity (for direction reference, arc uses targetPosition)
-        Vector3 projectileVelocity = shootDirection * projectileSpeed;
+        Vector3 projectileVelocity = shootDirection * scaledSpeed;
 
         // Create spawn message with arc parameters
         ProjectileSpawnMessage spawnMsg = new ProjectileSpawnMessage(
@@ -272,7 +279,7 @@ public class ServerGameState
             startPosition,
             projectileVelocity,
             targetPosition,
-            projectileArcHeight,
+            scaledArcHeight,  // Phase 2: Use scaled arc height
             flightTime
         );
 
@@ -286,13 +293,13 @@ public class ServerGameState
             ownerId = playerId,
             startPosition = startPosition,
             targetPosition = targetPosition,
-            arcHeight = projectileArcHeight,
+            arcHeight = scaledArcHeight,  // Phase 2: Use scaled arc height
             flightTime = flightTime,
             spawnTime = serverTime
         };
         activeProjectiles[projectileId] = serverProjectile;
 
-        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition} -> {targetPosition} (arc height: {projectileArcHeight})");
+        UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} spawned projectile {projectileId} at {startPosition} -> {targetPosition} (charge: {chargeValue:F2}, range: {scaledRange:F1}u, arc: {scaledArcHeight:F1}u)");
     }
 
     /// <summary>
@@ -599,6 +606,7 @@ public struct PlayerState
     public Vector3 facingDirection; // Last movement direction (for shooting when stationary)
     public bool isShootPressed;
     public Vector2 currentInput; // Latest input from client (stored, applied during UpdateState)
+    public float chargeValue;   // Phase 2: Charge amount 0.0-1.0 for projectile scaling
 
     // Death/respawn tracking
     public bool isAlive;

@@ -663,22 +663,24 @@ public class GameNetworkManager : MonoBehaviour
     
     /// <summary>
     /// Sends client input to the server (called from SimplePlayerController)
+    /// Phase 2: Added chargeValue parameter for charge-to-shoot mechanic
     /// </summary>
-    public void SendInput(Vector2 moveDirection, bool shootButton)
+    public void SendInput(Vector2 moveDirection, bool shootButton, float chargeValue)
     {
-        SendInputForPlayer(localPlayerId, moveDirection, shootButton);
+        SendInputForPlayer(localPlayerId, moveDirection, shootButton, chargeValue);
     }
 
     /// <summary>
     /// Sends client input for a specific player to the server
     /// Used for dual local player testing mode
+    /// Phase 2: Added chargeValue parameter for charge-to-shoot mechanic
     /// </summary>
-    public void SendInputForPlayer(uint playerId, Vector2 moveDirection, bool shootButton)
+    public void SendInputForPlayer(uint playerId, Vector2 moveDirection, bool shootButton, float chargeValue)
     {
         // FIX 3: Assign and increment sequence number
         uint currentSequence = inputSequenceNumber++;
 
-        ClientInputMessage input = new ClientInputMessage(playerId, currentSequence, moveDirection, shootButton);
+        ClientInputMessage input = new ClientInputMessage(playerId, currentSequence, moveDirection, shootButton, chargeValue);
 
         lock (outgoingQueueLock)
         {

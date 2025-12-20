@@ -11,8 +11,8 @@ public static class Serializer
 
     /// <summary>
     /// Serializes a ClientInputMessage to byte array
-    /// Format: [1 byte: type][4 bytes: playerId][4 bytes: sequenceNumber][4 bytes: moveX][4 bytes: moveY][1 byte: shootButton]
-    /// Total: 18 bytes (FIX 3: Added sequenceNumber)
+    /// Format: [1 byte: type][4 bytes: playerId][4 bytes: sequenceNumber][4 bytes: moveX][4 bytes: moveY][1 byte: shootButton][4 bytes: chargeValue]
+    /// Total: 22 bytes (Phase 2: Added chargeValue)
     /// </summary>
     public static byte[] SerializeClientInput(ClientInputMessage msg)
     {
@@ -26,6 +26,7 @@ public static class Serializer
                 writer.Write(msg.moveDirection.x);
                 writer.Write(msg.moveDirection.y);
                 writer.Write(msg.shootButton);
+                writer.Write(msg.chargeValue); // Phase 2: Write charge value (0.0-1.0)
 
                 return ms.ToArray();
             }
@@ -49,6 +50,7 @@ public static class Serializer
                 float moveY = reader.ReadSingle();
                 msg.moveDirection = new Vector2(moveX, moveY);
                 msg.shootButton = reader.ReadBoolean();
+                msg.chargeValue = reader.ReadSingle(); // Phase 2: Read charge value (0.0-1.0)
 
                 return msg;
             }
