@@ -53,11 +53,15 @@ public class SimplePlayerController : MonoBehaviour
     private float chargeStartTime = 0f;
     private float currentChargeValue = 0f;  // 0.0-1.0
     private const float maxChargeTime = 2f; // 2 seconds to full charge
+    private bool shootSignalPending = false; // Shoot signal waiting to be sent
+    private float pendingChargeValue = 0f;   // Charge value captured when shoot triggered
 
     // Phase 2: Charge mechanic state (Player 2)
     private bool wasSecondPlayerShootingLastFrame = false;
     private float secondPlayerChargeStartTime = 0f;
     private float secondPlayerChargeValue = 0f;
+    private bool secondPlayerShootSignalPending = false; // Shoot signal waiting to be sent
+    private float secondPlayerPendingChargeValue = 0f;   // Charge value captured when shoot triggered
 
     // Input rate limiting (FIX 1: Prevent input over-queuing)
     [Header("Network Settings")]
@@ -223,7 +227,17 @@ public class SimplePlayerController : MonoBehaviour
             // Require minimum 0.05s charge to avoid accidental taps
             bool justReleased = !shootNow && wasShootingLastFrame;
             bool hasMinimumCharge = (Time.time - chargeStartTime) > 0.05f;
-            shootButtonPressed = justReleased && hasMinimumCharge;
+
+            // Set pending flag when shoot is triggered AND capture charge value
+            if (justReleased && hasMinimumCharge)
+            {
+                shootSignalPending = true;
+                pendingChargeValue = currentChargeValue; // Capture charge value NOW before it's reset
+                UnityEngine.Debug.Log($"[Client] Shoot triggered! Charge: {pendingChargeValue:F2}");
+            }
+
+            // shootButtonPressed is true if we have a pending signal
+            shootButtonPressed = shootSignalPending;
 
             wasShootingLastFrame = shootNow;
 
@@ -277,7 +291,16 @@ public class SimplePlayerController : MonoBehaviour
                 // Require minimum 0.05s charge to avoid accidental taps
                 bool secondJustReleased = !secondShootNow && wasSecondPlayerShootingLastFrame;
                 bool secondHasMinimumCharge = (Time.time - secondPlayerChargeStartTime) > 0.05f;
-                secondPlayerShootPressed = secondJustReleased && secondHasMinimumCharge;
+
+                // Set pending flag when shoot is triggered AND capture charge value
+                if (secondJustReleased && secondHasMinimumCharge)
+                {
+                    secondPlayerShootSignalPending = true;
+                    secondPlayerPendingChargeValue = secondPlayerChargeValue; // Capture charge value NOW before it's reset
+                }
+
+                // secondPlayerShootPressed is true if we have a pending signal
+                secondPlayerShootPressed = secondPlayerShootSignalPending;
 
                 wasSecondPlayerShootingLastFrame = secondShootNow;
             }
@@ -301,13 +324,28 @@ public class SimplePlayerController : MonoBehaviour
 
         if (timeSinceLastSend >= sendInterval)
         {
-            // Phase 2: Send Player 1 input with charge value
-            networkManager.SendInput(currentInput, shootButtonPressed, currentChargeValue);
+            // Phase 2: Send Player 1 input with PENDING charge value (captured at button release)
+            networkManager.SendInput(currentInput, shootButtonPressed, pendingChargeValue);
 
-            // Phase 2: Send Player 2 input with charge value if enabled
+            // Clear Player 1 shoot signal after sending
+            if (shootSignalPending)
+            {
+                UnityEngine.Debug.Log($"[Client] Shoot signal SENT to server (charge: {pendingChargeValue:F2})");
+                shootSignalPending = false;
+                pendingChargeValue = 0f; // Reset pending charge after sending
+            }
+
+            // Phase 2: Send Player 2 input with PENDING charge value (captured at button release)
             if (enableSecondLocalPlayer)
             {
-                networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed, secondPlayerChargeValue);
+                networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed, secondPlayerPendingChargeValue);
+
+                // Clear Player 2 shoot signal after sending
+                if (secondPlayerShootSignalPending)
+                {
+                    secondPlayerShootSignalPending = false;
+                    secondPlayerPendingChargeValue = 0f; // Reset pending charge after sending
+                }
             }
 
             lastInputSendTime = Time.time;

@@ -222,6 +222,11 @@ public class ServerGameState
                     SpawnProjectile(playerId, player.position, player.facingDirection, player.chargeValue);
                     lastShootTime[playerId] = serverTime;
                 }
+                else
+                {
+                    // Debug: Shot blocked by cooldown
+                    UnityEngine.Debug.Log($"[ServerGameState] Player {playerId} shoot blocked by cooldown ({timeSinceLastShot:F2}s < {projectileCooldown}s)");
+                }
             }
 
             players[playerId] = player;
