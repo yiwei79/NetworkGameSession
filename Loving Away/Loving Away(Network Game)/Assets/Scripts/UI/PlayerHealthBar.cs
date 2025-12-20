@@ -25,10 +25,12 @@ public class PlayerHealthBar : MonoBehaviour
     // Health tracking
     private byte maxHealth = 5;
     private byte currentHealth = 5;
+    private bool initialized = false;
 
     void Start()
     {
-        CreateHealthBar();
+        // Defer creation to avoid initialization order issues
+        // Will be created on first SetHealth() call
     }
 
     /// <summary>
@@ -73,6 +75,13 @@ public class PlayerHealthBar : MonoBehaviour
     /// </summary>
     public void SetHealth(byte health, byte maxHp = 5)
     {
+        // Lazy initialization - create health bar on first call
+        if (!initialized)
+        {
+            CreateHealthBar();
+            initialized = true;
+        }
+
         currentHealth = health;
         maxHealth = maxHp;
 
@@ -121,6 +130,11 @@ public class PlayerHealthBar : MonoBehaviour
     /// </summary>
     public void FaceCamera()
     {
+        if (!initialized || barBackground == null || barForeground == null)
+        {
+            return;
+        }
+
         if (Camera.main != null)
         {
             Vector3 directionToCamera = Camera.main.transform.position - barBackground.transform.position;
@@ -137,8 +151,11 @@ public class PlayerHealthBar : MonoBehaviour
 
     void Update()
     {
-        // Always face camera for better visibility
-        FaceCamera();
+        // Always face camera for better visibility (only if initialized)
+        if (initialized)
+        {
+            FaceCamera();
+        }
     }
 
     void OnDestroy()

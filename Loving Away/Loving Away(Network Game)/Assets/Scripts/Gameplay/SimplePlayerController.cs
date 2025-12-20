@@ -616,6 +616,9 @@ public class SimplePlayerController : MonoBehaviour
         GameObject playerObj = Instantiate(playerPrefab);
         playerObj.name = $"Player_{playerId}";
 
+        // Add to dictionary immediately to prevent duplicate creation if errors occur below
+        playerObjects[playerId] = playerObj;
+
         // Set color based on player type (first local, second local, or remote)
         Color playerColor;
         if (playerId == localPlayerId)
@@ -649,15 +652,13 @@ public class SimplePlayerController : MonoBehaviour
         feedback.SetOriginalColor(playerColor);
         playerVisualFeedback[playerId] = feedback;
 
-        // Phase 3: Add health bar component
+        // Phase 3: Add health bar component (will be initialized when snapshot arrives)
         PlayerHealthBar healthBar = playerObj.AddComponent<PlayerHealthBar>();
-        healthBar.SetHealth(5); // Start with full HP
         playerHealthBars[playerId] = healthBar;
 
         // Add name tag (TextMesh above player)
         CreateNameTag(playerObj, playerId);
 
-        playerObjects[playerId] = playerObj;
         UnityEngine.Debug.Log($"[SimplePlayerController] Created visual for player {playerId}");
     }
     
