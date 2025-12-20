@@ -34,6 +34,7 @@ public class SimplePlayerController : MonoBehaviour
     // Player GameObjects (visual representation)
     private Dictionary<uint, GameObject> playerObjects;
     private Dictionary<uint, ShootVisualFeedback> playerVisualFeedback;
+    private Dictionary<uint, PlayerVisualController> playerVisualControllers; // Session 5A: Visual dressing
 
     // Projectile GameObjects
     private Dictionary<uint, GameObject> projectileObjects;
@@ -83,6 +84,7 @@ public class SimplePlayerController : MonoBehaviour
     {
         playerObjects = new Dictionary<uint, GameObject>();
         playerVisualFeedback = new Dictionary<uint, ShootVisualFeedback>();
+        playerVisualControllers = new Dictionary<uint, PlayerVisualController>(); // Session 5A: Visual dressing
         projectileObjects = new Dictionary<uint, GameObject>();
 
         // Find network manager if not assigned
@@ -434,8 +436,26 @@ public class SimplePlayerController : MonoBehaviour
                 playerObj.transform.position = snapshot.position;
             }
 
-            // Rotate based on velocity direction (for both local and remote)
-            if (snapshot.velocity.magnitude > 0.1f)
+            // Session 5A: Update visual controller with facing direction and alive state
+            if (playerVisualControllers.ContainsKey(snapshot.playerId))
+            {
+                PlayerVisualController visualController = playerVisualControllers[snapshot.playerId];
+                if (visualController != null)
+                {
+                    // Set facing direction based on velocity
+                    if (snapshot.velocity.magnitude > 0.1f)
+                    {
+                        visualController.SetFacingDirection(snapshot.velocity.normalized);
+                    }
+
+                    // Set alive state
+                    visualController.SetAliveState(snapshot.isAlive);
+                }
+            }
+
+            // Legacy rotation code (kept for backward compatibility if not using PlayerVisualController)
+            // This will be removed once visual controller is fully integrated
+            if (!playerVisualControllers.ContainsKey(snapshot.playerId) && snapshot.velocity.magnitude > 0.1f)
             {
                 Vector3 lookDirection = snapshot.velocity.normalized;
                 Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
@@ -516,7 +536,6 @@ public class SimplePlayerController : MonoBehaviour
         playerObj.name = $"Player_{playerId}";
 
         // Set color based on player type (first local, second local, or remote)
-        Renderer renderer = playerObj.GetComponent<Renderer>();
         Color playerColor;
         if (playerId == localPlayerId)
         {
@@ -530,20 +549,28 @@ public class SimplePlayerController : MonoBehaviour
         {
             playerColor = remotePlayerColor;
         }
+
+        // Session 5A: Add PlayerVisualController for enhanced character visuals
+        PlayerVisualController visualController = playerObj.AddComponent<PlayerVisualController>();
+        visualController.SetPlayerColor(playerColor);
+        playerVisualControllers[playerId] = visualController;
+
+        // Keep legacy renderer for backward compatibility (in case prefab still has a renderer)
+        Renderer renderer = playerObj.GetComponent<Renderer>();
         if (renderer != null)
         {
             renderer.material.color = playerColor;
         }
-        
+
         // Add visual feedback component
         ShootVisualFeedback feedback = playerObj.AddComponent<ShootVisualFeedback>();
         feedback.chargeColor = playerColor * 0.8f;
         feedback.SetOriginalColor(playerColor);
         playerVisualFeedback[playerId] = feedback;
-        
+
         // Add name tag (TextMesh above player)
         CreateNameTag(playerObj, playerId);
-        
+
         playerObjects[playerId] = playerObj;
         UnityEngine.Debug.Log($"[SimplePlayerController] Created visual for player {playerId}");
     }
@@ -610,8 +637,21 @@ public class SimplePlayerController : MonoBehaviour
             {
                 Destroy(playerObjects[playerId]);
                 playerObjects.Remove(playerId);
-                UnityEngine.Debug.Log($"[SimplePlayerController] Removed player {playerId}");
             }
+
+            // Session 5A: Cleanup visual controller
+            if (playerVisualControllers.ContainsKey(playerId))
+            {
+                playerVisualControllers.Remove(playerId);
+            }
+
+            // Cleanup visual feedback
+            if (playerVisualFeedback.ContainsKey(playerId))
+            {
+                playerVisualFeedback.Remove(playerId);
+            }
+
+            UnityEngine.Debug.Log($"[SimplePlayerController] Removed player {playerId}");
         }
     }
 
@@ -888,6 +928,7 @@ public class SimplePlayerController : MonoBehaviour
         }
         playerObjects.Clear();
         playerVisualFeedback.Clear();
+        playerVisualControllers.Clear(); // Session 5A: Visual dressing cleanup
     }
 }
 
