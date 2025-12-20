@@ -155,7 +155,9 @@ Deliverable 4 implements **World State Replication** (Lab 7) with a complete, pl
 **Files Created:** ArenaSetup.cs, PlayerVisualController.cs
 **Files Modified:** SimplePlayerController.cs, MultiplayerTest.unity
 
-**Documentation:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) ✅ APPROVED
+**Documentation:**
+- **Quick Start:** [SESSION_5_HANDOFF.md](SESSION_5_HANDOFF.md) ⭐ Start here for implementation
+- **Detailed Plan:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) ✅ APPROVED (887 lines)
 
 ---
 
@@ -193,7 +195,9 @@ Deliverable 4 implements **World State Replication** (Lab 7) with a complete, pl
 **Files Created:** MainMenu.unity, MainMenuController.cs, NetworkSettings.cs, PauseMenuController.cs, GameHUD.cs (optional)
 **Files Modified:** GameNetworkManager.cs, SimplePlayerController.cs
 
-**Documentation:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) ✅ APPROVED
+**Documentation:**
+- **Quick Start:** [SESSION_5_HANDOFF.md](SESSION_5_HANDOFF.md) ⭐ Start here for implementation
+- **Detailed Plan:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) ✅ APPROVED (Tasks 3-5)
 
 ---
 
@@ -322,17 +326,19 @@ Before submitting D4:
 
 ### For New Implementation Sessions
 
-1. **Start:** `/session-start` or read this document
-2. **Reference:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) for Tasks 1-5
-3. **Files:** See "Files Created/Modified" in each task
-4. **Architecture:** See [SCOPE_CORRECTION.md](SCOPE_CORRECTION.md) for D4 vs D5 scope
+1. **Start:** Read [SESSION_5_HANDOFF.md](SESSION_5_HANDOFF.md) ⭐ Quick-start guide (5 min)
+2. **Reference:** [SESSION_5_PLAN.md](SESSION_5_PLAN.md) for detailed code patterns during implementation
+3. **Context:** [SCOPE_CORRECTION.md](SCOPE_CORRECTION.md) for D4 vs D5 scope understanding
+4. **Status:** [PROJECT_STATUS.md](../Workflow/PROJECT_STATUS.md) for latest updates
 
 ### Key Documents
 
-- **[SESSION_5_PLAN.md](SESSION_5_PLAN.md)** - Detailed implementation plan for visual polish + UI ✅ APPROVED
-- **[SCOPE_CORRECTION.md](SCOPE_CORRECTION.md)** - D4 (Lab 7) vs D5 (Labs 8-9) clarification
+- **[SESSION_5_HANDOFF.md](SESSION_5_HANDOFF.md)** ⭐ **START HERE** - Quick implementation guide for Session 5A/5B
+- **[SESSION_5_PLAN.md](SESSION_5_PLAN.md)** - Comprehensive implementation plan (887 lines) ✅ APPROVED
+- **[PLANNING_SESSION_SUMMARY.md](PLANNING_SESSION_SUMMARY.md)** - Full planning session record with decisions
+- **[SCOPE_CORRECTION.md](SCOPE_CORRECTION.md)** - D4 (Lab 7) vs D5 (Labs 8-9) scope analysis
 - **[PROJECT_STATUS.md](../Workflow/PROJECT_STATUS.md)** - Real-time progress tracking
-- **[CLAUDE.md](../../CLAUDE.md)** - Master project context
+- **[CLAUDE.md](../../CLAUDE.md)** - Master project context and agentic workflow guide
 
 ---
 

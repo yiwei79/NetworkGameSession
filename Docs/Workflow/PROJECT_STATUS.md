@@ -1,9 +1,10 @@
 # PROJECT STATUS
 
 > **Last Updated:** 2025-12-20
-> **Last Session:** Phase4-Session4.5 (Visual Effects)
+> **Last Session:** Phase4-Planning Session (Session 5 Visual Polish & UI Planning)
 > **Branch:** Phase_4
 > **SCOPE CORRECTION:** D4 = Lab 7 only (World State Replication + Complete Game). D5 = Labs 8-9 (Network Robustness).
+> **Next Session:** Phase4-Session5A (Implementation - Visual Dressing)
 
 ---
 
@@ -11,8 +12,10 @@
 
 | Deliverable | Status | Progress | Due Date | Lab Coverage |
 |-------------|--------|----------|----------|--------------|
-| **Deliverable 4** | ⏳ **95% Complete** | Need polish + bug fixes | TBD | **Lab 7: World State Replication** |
+| **Deliverable 4** | ⏳ **70% Complete** | Visual polish + testing remaining | TBD | **Lab 7: World State Replication** |
 | Deliverable 5 | ❌ Not Started | 0% | TBD | Labs 8-9: Network Robustness |
+
+> **✅ Session 5 Planning Complete:** Detailed implementation plan approved (SESSION_5_PLAN.md). Ready for implementation (7.5-9.5h + 4-6h testing = 12-15.5h total).
 
 ---
 
@@ -69,20 +72,22 @@
 
 **Goal:** Complete Deliverable 4 - Playable demo with solid world state replication
 
-### Session 5: Visual Polish and UI (Planned)
+### Session 5: Visual Polish and UI ✅ PLANNED (Ready for Implementation)
 
 **Goal:** Make game presentable for D4 "playability" grading (10% of grade)
+**Planning Status:** ✅ Complete - See [SESSION_5_PLAN.md](../Deliverable%204/SESSION_5_PLAN.md) for detailed implementation guide
+**User Decisions:** ✅ Approved - Enhanced primitives (capsule+sphere), placeholder decorations with easy asset swap, current color scheme
 
 | Task | Status | Priority | Estimated Time | Notes |
 |------|--------|----------|----------------|-------|
 | **Session 5A: Visual Dressing** |
-| Task 1: Arena ground & decorations | ❌ Pending | High | 1.5-2h | ArenaSetup.cs, use asset package or primitives |
-| Task 2: Player character replacement | ❌ Pending | High | 2-2.5h | PlayerVisualController.cs, capsule+sphere or assets |
+| Task 1: Arena ground & decorations | 📋 Planned | High | 1.5-2h | ArenaSetup.cs with nullable prefab fields |
+| Task 2: Player character replacement | 📋 Planned | High | 2-2.5h | PlayerVisualController.cs, capsule+sphere head |
 | **Session 5B: UI System** |
-| Task 3: Main menu scene | ❌ Pending | High | 1.5-2h | MainMenuController.cs, host/join flow |
-| Task 4: Pause menu + HUD | ❌ Pending | High | 1.5-2h | PauseMenuController.cs, ESC to pause |
-| Task 5: Scene flow integration | ❌ Pending | High | 1h | Modify GameNetworkManager to read settings |
-| **Session 5 Subtotal** | | | **7.5-9.5h** | Split across 2 implementation sessions |
+| Task 3: Main menu scene | 📋 Planned | High | 1.5-2h | MainMenuController.cs + NetworkSettings.cs |
+| Task 4: Pause menu + HUD | 📋 Planned | High | 1.5-2h | PauseMenuController.cs, client-side pause |
+| Task 5: Scene flow integration | 📋 Planned | High | 1h | GameNetworkManager reads NetworkSettings |
+| **Session 5 Subtotal** | | | **7.5-9.5h** | ✅ Detailed plan in SESSION_5_PLAN.md |
 
 ### Bug Fixes & Testing
 
@@ -135,6 +140,7 @@
 
 | Session | Date | What Was Done | Files Modified |
 |---------|------|---------------|----------------|
+| **Phase4-Planning** | **2025-12-20** | **Session 5 planning: Visual polish & UI system** | **SCOPE_CORRECTION.md, SESSION_5_PLAN.md, PLANNING_SESSION_SUMMARY.md, SESSION_5_HANDOFF.md, DELIVERABLE_4_PLAN.md, PROJECT_STATUS.md** |
 | Phase4-Session4.5 | 2025-12-20 | Visual effects system (hit/death/respawn particles, screen shake), VisualEffectsManager with object pooling | VisualEffectsManager.cs (NEW), SimplePlayerController.cs |
 | Phase4-Session4 | 2025-12-14 | Death/respawn system, arena boundary elimination, PlayerDeathMessage, PlayerRespawnMessage, PlayerSnapshot.isAlive | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session3 | 2025-12-14 | Hit detection, knockback, ProjectileHitMessage, server projectile tracking | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
@@ -144,40 +150,37 @@
 
 ---
 
-## Next Session: Deliverable 4 Final Polish
+## Next Session: Session 5A - Visual Dressing (Implementation)
 
-**Goal:** Complete and submit Deliverable 4 (Lab 7 requirements)
+**Goal:** Implement arena visual dressing and player character replacements (3.5-4.5 hours)
 
-**Tasks (4-6 hours total):**
+**Status:** ✅ Fully planned and approved - Ready for implementation
 
-1. **Fix ISSUE-002: Dead Player Jitter** (30 min)
-   - Location: `SimplePlayerController.cs` → `PredictLocalPlayerMovement()`
-   - Fix: Add `if (!localPlayerIsAlive) return;` at method start
-   - Track `localPlayerIsAlive` from latest server snapshot
+**Primary Reference:** [SESSION_5_PLAN.md](../Deliverable%204/SESSION_5_PLAN.md) (887 lines, comprehensive implementation guide)
+**Handoff Document:** [SESSION_5_HANDOFF.md](../Deliverable%204/SESSION_5_HANDOFF.md) (Quick-start guide)
 
-2. **Multiplayer Testing** (1-2 hours)
-   - Build standalone client
-   - Run Editor (server) + Build (client)
-   - Test all gameplay features with 2 real clients
-   - Document any bugs found
+**Tasks for Session 5A:**
 
-3. **Bug Fixes from Testing** (1-2 hours)
-   - Fix any issues discovered during multiplayer testing
-   - Test edge cases: rapid deaths, simultaneous hits, boundary deaths
+1. **Task 1: Arena Ground & Decorations** (1.5-2h)
+   - Create `Assets/Scripts/Gameplay/ArenaSetup.cs`
+   - Implement procedural ground (cylinder, 30u diameter)
+   - Add boundary ring visual (LineRenderer at 15u radius)
+   - Generate decorations (trees, rocks, mushrooms) outside playable area
+   - Design with nullable prefab fields for easy asset replacement
 
-4. **Performance Profiling** (1 hour)
-   - Ensure 60 FPS with 4 players + projectiles
-   - Optimize if needed (unlikely - current implementation is lightweight)
+2. **Task 2: Player Character Replacement** (2-2.5h)
+   - Create `Assets/Scripts/Gameplay/PlayerVisualController.cs`
+   - Build characters from primitives: Capsule body + Sphere head + Eye
+   - Modify `SimplePlayerController.cs` to use PlayerVisualController
+   - Implement rotation based on facing direction
+   - Handle dead state visibility (hide when dead)
 
-5. **Code Cleanup** (30 min)
-   - Remove commented code
-   - Ensure all variables have clear English names
-   - Verify indentation consistency
+**Architecture Highlights:**
+- PlayerVisualController pattern separates visuals from network logic (zero risk to networking)
+- Nullable prefab fields allow user to swap primitives with asset models later (drag-and-drop in Inspector)
+- All network code remains unchanged - visuals are purely client-side rendering
 
-6. **Documentation** (1 hour)
-   - Update README with gameplay instructions
-   - Document network architecture for submission
-   - Create testing guide for graders
+**After Session 5A:** Continue to Session 5B (UI System) or fix bugs from Session 6 plan
 
 ---
 
