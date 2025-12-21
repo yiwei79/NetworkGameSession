@@ -11,7 +11,12 @@ public class ShootVisualFeedback : MonoBehaviour
     public Color chargeColor = Color.yellow;
     public Color shootFlashColor = Color.white;
     public float maxChargeScale = 1.5f;
-    
+
+    [Header("Cooldown Bar Settings")]
+    public float cooldownBarWidth = 1.0f;
+    public float cooldownBarHeight = 0.08f;
+    public float cooldownBarYOffset = 1.7f; // Below name tag, above health bar
+
     // Internal state
     private GameObject chargeIndicator;
     private GameObject muzzleFlash;
@@ -19,10 +24,15 @@ public class ShootVisualFeedback : MonoBehaviour
     private Color originalColor;
     private bool wasShootingLastFrame = false;
     private float chargeTime = 0f;
-    
+
     // Muzzle flash
     private float flashTimer = 0f;
     private float flashDuration = 0.1f;
+
+    // Cooldown bar (Phase 5.5)
+    private GameObject cooldownBarBackground;
+    private GameObject cooldownBarForeground;
+    private Renderer cooldownForegroundRenderer;
     
     void Start()
     {
@@ -54,6 +64,9 @@ public class ShootVisualFeedback : MonoBehaviour
 
         // Create muzzle flash
         CreateMuzzleFlash();
+
+        // Phase 5.5: Create cooldown bar
+        CreateCooldownBar();
     }
     
     void CreateChargeIndicator()
@@ -107,11 +120,53 @@ public class ShootVisualFeedback : MonoBehaviour
         // Remove collider
         Destroy(muzzleFlash.GetComponent<Collider>());
     }
-    
+
+    /// <summary>
+    /// Phase 5.5: Creates the cooldown bar (UI bar above head)
+    /// Shows when player can shoot again after cooldown
+    /// </summary>
+    void CreateCooldownBar()
+    {
+        // Background (dark gray bar)
+        cooldownBarBackground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cooldownBarBackground.name = "CooldownBarBackground";
+        cooldownBarBackground.transform.SetParent(transform);
+        cooldownBarBackground.transform.localPosition = new Vector3(0, cooldownBarYOffset, 0);
+        cooldownBarBackground.transform.localScale = new Vector3(cooldownBarWidth, cooldownBarHeight, 0.05f);
+
+        Renderer bgRenderer = cooldownBarBackground.GetComponent<Renderer>();
+        if (bgRenderer != null && bgRenderer.material != null)
+        {
+            bgRenderer.material.color = new Color(0.2f, 0.2f, 0.2f); // Dark gray
+        }
+
+        Destroy(cooldownBarBackground.GetComponent<Collider>());
+
+        // Foreground (colored cooldown bar)
+        cooldownBarForeground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cooldownBarForeground.name = "CooldownBarForeground";
+        cooldownBarForeground.transform.SetParent(transform);
+        cooldownBarForeground.transform.localPosition = new Vector3(0, cooldownBarYOffset, -0.03f); // Slightly in front
+        cooldownBarForeground.transform.localScale = new Vector3(cooldownBarWidth, cooldownBarHeight, 0.05f);
+
+        cooldownForegroundRenderer = cooldownBarForeground.GetComponent<Renderer>();
+        if (cooldownForegroundRenderer != null && cooldownForegroundRenderer.material != null)
+        {
+            cooldownForegroundRenderer.material.color = Color.green; // Start green (ready)
+        }
+
+        Destroy(cooldownBarForeground.GetComponent<Collider>());
+
+        // Hide cooldown bar initially (only show after first shot)
+        cooldownBarBackground.SetActive(false);
+        cooldownBarForeground.SetActive(false);
+    }
+
     /// <summary>
     /// Call this from SimplePlayerController to update visual feedback
+    /// Phase 5.5: Now accepts cooldownPercent (0.0 = just shot, 1.0 = ready)
     /// </summary>
-    public void UpdateFeedback(bool isShooting)
+    public void UpdateFeedback(bool isShooting, float cooldownPercent)
     {
         if (isShooting)
         {
@@ -157,6 +212,9 @@ public class ShootVisualFeedback : MonoBehaviour
         
         // Update muzzle flash
         UpdateMuzzleFlash();
+
+        // Phase 5.5: Update cooldown bar
+        UpdateCooldownBar(cooldownPercent);
     }
     
     void TriggerMuzzleFlash()
@@ -170,7 +228,7 @@ public class ShootVisualFeedback : MonoBehaviour
         if (flashTimer > 0f)
         {
             flashTimer -= Time.deltaTime;
-            
+
             // Fade out
             float t = flashTimer / flashDuration;
             muzzleFlash.transform.localScale = Vector3.one * 0.5f * t;
@@ -180,7 +238,45 @@ public class ShootVisualFeedback : MonoBehaviour
             muzzleFlash.transform.localScale = Vector3.zero;
         }
     }
-    
+
+    /// <summary>
+    /// Phase 5.5: Updates the cooldown bar based on cooldown percent
+    /// </summary>
+    void UpdateCooldownBar(float cooldownPercent)
+    {
+        bool onCooldown = (cooldownPercent < 1.0f);
+
+        if (onCooldown)
+        {
+            // Show cooldown bar
+            if (cooldownBarBackground != null) cooldownBarBackground.SetActive(true);
+            if (cooldownBarForeground != null) cooldownBarForeground.SetActive(true);
+
+            // Scale bar width based on cooldown percent (0.0 → 1.0)
+            Vector3 scale = cooldownBarForeground.transform.localScale;
+            scale.x = cooldownBarWidth * cooldownPercent;
+            cooldownBarForeground.transform.localScale = scale;
+
+            // Adjust position to keep bar left-aligned
+            Vector3 pos = cooldownBarForeground.transform.localPosition;
+            pos.x = -cooldownBarWidth * 0.5f + (cooldownBarWidth * cooldownPercent * 0.5f);
+            cooldownBarForeground.transform.localPosition = pos;
+
+            // Color transition: Red (0%) → Green (100%)
+            if (cooldownForegroundRenderer != null && cooldownForegroundRenderer.material != null)
+            {
+                Color barColor = Color.Lerp(Color.red, Color.green, cooldownPercent);
+                cooldownForegroundRenderer.material.color = barColor;
+            }
+        }
+        else
+        {
+            // Hide cooldown bar when ready
+            if (cooldownBarBackground != null) cooldownBarBackground.SetActive(false);
+            if (cooldownBarForeground != null) cooldownBarForeground.SetActive(false);
+        }
+    }
+
     /// <summary>
     /// Update original color when player color changes
     /// </summary>
@@ -198,6 +294,15 @@ public class ShootVisualFeedback : MonoBehaviour
         if (muzzleFlash != null)
         {
             Destroy(muzzleFlash);
+        }
+        // Phase 5.5: Cleanup cooldown bar
+        if (cooldownBarBackground != null)
+        {
+            Destroy(cooldownBarBackground);
+        }
+        if (cooldownBarForeground != null)
+        {
+            Destroy(cooldownBarForeground);
         }
     }
 }

@@ -13,10 +13,10 @@ public class ServerGameState
     // Game timing
     private float serverTime;
 
-    // Movement parameters
-    private float moveSpeed = 5.0f;
-    private float acceleration = 50.0f; // Increased for more responsive movement
-    private float maxDeltaTime = 0.1f; // Cap delta time to prevent huge jumps
+    // Movement parameters (Phase 5.6: Heavier "Animal Party" feel)
+    private float moveSpeed = 3.5f;     // Was 5.0f - 30% slower, more deliberate
+    private float acceleration = 25.0f; // Was 50.0f - 50% slower, more momentum
+    private float maxDeltaTime = 0.1f;  // Cap delta time to prevent huge jumps
 
     // Projectile system
     private Queue<ProjectileSpawnMessage> pendingProjectileSpawns;
@@ -98,7 +98,7 @@ public class ServerGameState
         float radius = 5f;
         return new Vector3(
             Mathf.Cos(angle) * radius,
-            0.5f, // Slightly above ground
+            0.0f, // Phase 5.6: At ground level (was 0.5f - caused floating)
             Mathf.Sin(angle) * radius
         );
     }
@@ -209,8 +209,8 @@ public class ServerGameState
                 TriggerPlayerDeath(player.playerId, player.position);
             }
 
-            // Keep player at ground level
-            player.position.y = 0.5f;
+            // Phase 5.6: Keep player at ground level (was 0.5f - caused floating)
+            player.position.y = 0.0f;
 
             // Handle shooting (Phase 2: Pass chargeValue for trajectory scaling)
             if (player.isShootPressed)
@@ -266,7 +266,7 @@ public class ServerGameState
         // Phase 2: Scale projectile parameters based on charge (0.0-1.0)
         float scaledRange = Mathf.Lerp(5f, 20f, chargeValue);      // 5u → 20u
         float scaledArcHeight = Mathf.Lerp(2f, 6f, chargeValue);   // 2u → 6u
-        float scaledSpeed = Mathf.Lerp(12f, 18f, chargeValue);     // 12u/s → 18u/s
+        float scaledSpeed = Mathf.Lerp(8f, 12f, chargeValue);      // 8u/s → 12u/s (Phase 5.6: Heavier feel)
 
         // Calculate target position (where projectile lands)
         Vector3 targetPosition = playerPosition + shootDirection * scaledRange;

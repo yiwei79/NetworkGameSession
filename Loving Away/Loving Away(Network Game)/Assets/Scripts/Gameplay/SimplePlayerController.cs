@@ -39,6 +39,9 @@ public class SimplePlayerController : MonoBehaviour
 
     // Projectile GameObjects
     private Dictionary<uint, GameObject> projectileObjects;
+
+    // Phase 5.5: Cooldown tracking (last shot time per player)
+    private Dictionary<uint, float> lastProjectileSpawnTime;
     
     // Input state (Player 1: WASD + Space)
     private Vector2 currentInput;
@@ -74,8 +77,9 @@ public class SimplePlayerController : MonoBehaviour
     public float predictionBlendSpeed = 10f; // How fast to reconcile with server
 
     // Movement parameters (must match server - ServerGameState.cs)
-    private float moveSpeed = 5.0f;
-    private float acceleration = 50.0f;
+    // Phase 5.6: Heavier "Animal Party" feel
+    private float moveSpeed = 3.5f;     // Was 5.0f - 30% slower, more deliberate
+    private float acceleration = 25.0f; // Was 50.0f - 50% slower, more momentum
     private float arenaRadius = 15f;
 
     // Local player prediction state
@@ -103,6 +107,7 @@ public class SimplePlayerController : MonoBehaviour
         playerVisualControllers = new Dictionary<uint, PlayerVisualController>(); // Session 5A: Visual dressing
         playerHealthBars = new Dictionary<uint, PlayerHealthBar>(); // Phase 3: Health bars
         projectileObjects = new Dictionary<uint, GameObject>();
+        lastProjectileSpawnTime = new Dictionary<uint, float>(); // Phase 5.5: Cooldown tracking
 
         // Find network manager if not assigned
         if (networkManager == null)
@@ -410,17 +415,8 @@ public class SimplePlayerController : MonoBehaviour
         // Update predicted position based on velocity
         predictedPosition += predictedVelocity * deltaTime;
 
-        // Apply arena boundary constraints (same as server)
-        Vector3 positionXZ = new Vector3(predictedPosition.x, 0, predictedPosition.z);
-        if (positionXZ.magnitude > arenaRadius)
-        {
-            // Push back inside arena
-            positionXZ = positionXZ.normalized * arenaRadius;
-            predictedPosition = new Vector3(positionXZ.x, predictedPosition.y, positionXZ.z);
-
-            // Reduce velocity when hitting boundary
-            predictedVelocity *= 0.5f;
-        }
+        // Phase 5.6: Removed boundary bounce - let server handle instant death
+        // (Server kills players at boundary in ServerGameState.cs)
 
         // Apply predicted position to visual (instant response!)
         localPlayerObj.transform.position = predictedPosition;
@@ -483,17 +479,8 @@ public class SimplePlayerController : MonoBehaviour
         // Update predicted position based on velocity
         secondPredictedPosition += secondPredictedVelocity * deltaTime;
 
-        // Apply arena boundary constraints (same as server)
-        Vector3 positionXZ = new Vector3(secondPredictedPosition.x, 0, secondPredictedPosition.z);
-        if (positionXZ.magnitude > arenaRadius)
-        {
-            // Push back inside arena
-            positionXZ = positionXZ.normalized * arenaRadius;
-            secondPredictedPosition = new Vector3(positionXZ.x, secondPredictedPosition.y, positionXZ.z);
-
-            // Reduce velocity when hitting boundary
-            secondPredictedVelocity *= 0.5f;
-        }
+        // Phase 5.6: Removed boundary bounce - let server handle instant death
+        // (Server kills players at boundary in ServerGameState.cs)
 
         // Apply predicted position to visual (instant response!)
         secondPlayerObj.transform.position = secondPredictedPosition;
@@ -780,6 +767,21 @@ public class SimplePlayerController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Phase 5.5: Calculates cooldown percent for a player (0.0 = just shot, 1.0 = ready)
+    /// </summary>
+    float GetCooldownPercent(uint playerId)
+    {
+        if (!lastProjectileSpawnTime.ContainsKey(playerId))
+        {
+            return 1.0f; // No shot yet, ready to shoot
+        }
+
+        float timeSinceShot = Time.time - lastProjectileSpawnTime[playerId];
+        float cooldownDuration = 0.5f; // Match server cooldown
+        return Mathf.Clamp01(timeSinceShot / cooldownDuration);
+    }
+
     void HandleProjectileSpawn(ProjectileSpawnMessage spawnMsg)
     {
         // Create projectile GameObject
@@ -808,6 +810,9 @@ public class SimplePlayerController : MonoBehaviour
 
         // Track the projectile
         projectileObjects[spawnMsg.projectileId] = projectileObj;
+
+        // Phase 5.5: Track spawn time for cooldown calculation
+        lastProjectileSpawnTime[spawnMsg.ownerId] = Time.time;
 
         UnityEngine.Debug.Log($"[SimplePlayerController] Spawned projectile {spawnMsg.projectileId} from player {spawnMsg.ownerId}");
     }
@@ -922,16 +927,18 @@ public class SimplePlayerController : MonoBehaviour
     
     void UpdateVisualFeedback()
     {
-        // Update first local player's visual feedback based on shoot button
+        // Phase 5.5: Update first local player's visual feedback with cooldown state
         if (playerVisualFeedback.ContainsKey(localPlayerId))
         {
-            playerVisualFeedback[localPlayerId].UpdateFeedback(shootButtonPressed);
+            float cooldownPercent = GetCooldownPercent(localPlayerId);
+            playerVisualFeedback[localPlayerId].UpdateFeedback(shootButtonPressed, cooldownPercent);
         }
 
-        // Update second local player's visual feedback if enabled
+        // Phase 5.5: Update second local player's visual feedback with cooldown state
         if (enableSecondLocalPlayer && playerVisualFeedback.ContainsKey(secondLocalPlayerId))
         {
-            playerVisualFeedback[secondLocalPlayerId].UpdateFeedback(secondPlayerShootPressed);
+            float secondCooldownPercent = GetCooldownPercent(secondLocalPlayerId);
+            playerVisualFeedback[secondLocalPlayerId].UpdateFeedback(secondPlayerShootPressed, secondCooldownPercent);
         }
     }
     
