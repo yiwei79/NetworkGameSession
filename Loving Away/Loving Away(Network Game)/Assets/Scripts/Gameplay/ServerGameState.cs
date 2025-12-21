@@ -31,7 +31,9 @@ public class ServerGameState
     private float projectileArcHeight = 3.0f; // Peak height of arc trajectory
 
     // Hit detection parameters
-    private float collisionRadius = 0.7f; // Combined projectile (0.2) + player (0.5) radius
+    // Phase 5.6: Increased for chibi character (head radius 0.45, total height 1.5)
+    // Larger radius makes hits easier and accounts for character size
+    private float collisionRadius = 1.5f; // Was 0.7f - now matches chibi character extent
     private float knockbackForce = 12.0f; // Units per second
 
     // Death/respawn system
@@ -207,6 +209,9 @@ public class ServerGameState
             {
                 // Player crossed boundary - trigger death
                 TriggerPlayerDeath(player.playerId, player.position);
+                // Phase 5.6 FIX: Skip rest of processing for dead player
+                // (TriggerPlayerDeath modifies dictionary, but 'player' is a struct copy)
+                continue;
             }
 
             // Phase 5.6: Keep player at ground level (was 0.5f - caused floating)
