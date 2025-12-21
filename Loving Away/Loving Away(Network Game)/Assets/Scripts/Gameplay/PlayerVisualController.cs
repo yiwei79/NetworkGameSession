@@ -68,17 +68,18 @@ public class PlayerVisualController : MonoBehaviour
     }
 
     /// <summary>
-    /// Creates a character from primitives (Option A from SESSION_5_PLAN.md)
-    /// Assembly: Capsule body + Sphere head + Small sphere eye
+    /// Creates a chibi-style character from primitives
+    /// Chibi proportions: Big head (60%) + Small body (40%) = Cute!
+    /// Total height: 1.5 units
     /// </summary>
     void CreatePrimitiveCharacter()
     {
-        // Body: Capsule (1.0 height, 0.4 radius)
+        // CHIBI BODY: Small capsule (height 0.6, radius 0.35)
         bodyObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         bodyObject.transform.parent = visualRoot;
         bodyObject.name = "Body";
-        bodyObject.transform.localPosition = new Vector3(0f, 0.5f, 0f); // Center at 0.5 units high
-        bodyObject.transform.localScale = new Vector3(0.4f, 0.5f, 0.4f); // Half-height for 1.0 total
+        bodyObject.transform.localPosition = new Vector3(0f, 0.3f, 0f); // Center at 0.3 units high
+        bodyObject.transform.localScale = new Vector3(0.7f, 0.3f, 0.7f); // Capsule: radius 0.35, height 0.6
 
         // Apply body color (use existing material to avoid shader issues)
         Renderer bodyRenderer = bodyObject.GetComponent<Renderer>();
@@ -90,12 +91,12 @@ public class PlayerVisualController : MonoBehaviour
         // Remove collider (SimplePlayerController handles physics/collision)
         Destroy(bodyObject.GetComponent<Collider>());
 
-        // Head: Sphere (0.35 radius) at top
+        // CHIBI HEAD: BIG sphere (radius 0.45) - the star of the show!
         headObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         headObject.transform.parent = visualRoot;
         headObject.name = "Head";
-        headObject.transform.localPosition = new Vector3(0f, 1.2f, 0f); // Above body
-        headObject.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
+        headObject.transform.localPosition = new Vector3(0f, 1.05f, 0f); // Body top (0.6) + head radius (0.45)
+        headObject.transform.localScale = new Vector3(0.9f, 0.9f, 0.9f); // Radius 0.45 (sphere default 0.5)
 
         // Apply head color (slightly brighter than body, use existing material)
         Renderer headRenderer = headObject.GetComponent<Renderer>();
@@ -107,12 +108,12 @@ public class PlayerVisualController : MonoBehaviour
         // Remove collider
         Destroy(headObject.GetComponent<Collider>());
 
-        // Eye: Small sphere (0.08 radius) for face
+        // CHIBI EYE: Bigger, more expressive (radius 0.12)
         eyeObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         eyeObject.transform.parent = headObject.transform; // Child of head
         eyeObject.name = "Eye";
-        eyeObject.transform.localPosition = new Vector3(0f, 0.05f, 0.3f); // Front of head
-        eyeObject.transform.localScale = new Vector3(0.23f, 0.23f, 0.23f); // 0.08 / 0.35 = 0.23
+        eyeObject.transform.localPosition = new Vector3(0f, 0.05f, 0.42f); // Front of bigger head
+        eyeObject.transform.localScale = new Vector3(0.267f, 0.267f, 0.267f); // Radius 0.12 relative to head
 
         // Apply eye color (white, use existing material)
         Renderer eyeRenderer = eyeObject.GetComponent<Renderer>();
