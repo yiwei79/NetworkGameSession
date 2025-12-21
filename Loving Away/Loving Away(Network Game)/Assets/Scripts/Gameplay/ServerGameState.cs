@@ -270,7 +270,7 @@ public class ServerGameState
 
         // Calculate target position (where projectile lands)
         Vector3 targetPosition = playerPosition + shootDirection * scaledRange;
-        targetPosition.y = 0.5f; // Land at ground level
+        targetPosition.y = 0.0f; // Land at ground level (Phase 5.6: Matches player Y position)
 
         // Calculate flight time based on scaled range and speed
         float flightTime = scaledRange / scaledSpeed;

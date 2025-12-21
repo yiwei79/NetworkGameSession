@@ -86,11 +86,13 @@ public class SimplePlayerController : MonoBehaviour
     private Vector3 predictedVelocity = Vector3.zero;
     private Vector3 predictedPosition = Vector3.zero;
     private bool hasInitializedPrediction = false;
+    private bool isLocalPlayerAlive = true; // Phase 5.6: Track alive state
 
     // Second local player prediction state
     private Vector3 secondPredictedVelocity = Vector3.zero;
     private Vector3 secondPredictedPosition = Vector3.zero;
     private bool hasInitializedSecondPrediction = false;
+    private bool isSecondPlayerAlive = true; // Phase 5.6: Track alive state
 
     // Network stats
     private int packetsSent;
@@ -363,6 +365,12 @@ public class SimplePlayerController : MonoBehaviour
         // This method applies the same movement logic as ServerGameState.UpdateState()
         // to give instant visual feedback for the local player
 
+        // Phase 5.6: Don't predict if player is dead
+        if (!isLocalPlayerAlive)
+        {
+            return;
+        }
+
         // Check if local player object exists
         if (!playerObjects.ContainsKey(localPlayerId))
         {
@@ -426,6 +434,12 @@ public class SimplePlayerController : MonoBehaviour
     {
         // Client-side prediction for second local player
         // Mirror of PredictLocalPlayerMovement() but for player 2
+
+        // Phase 5.6: Don't predict if player is dead
+        if (!isSecondPlayerAlive)
+        {
+            return;
+        }
 
         // Check if second player object exists
         if (!playerObjects.ContainsKey(secondLocalPlayerId))
@@ -579,6 +593,9 @@ public class SimplePlayerController : MonoBehaviour
         // FIX 2: Reconciliation - blend predicted position to match server
         // This corrects any prediction errors while maintaining smooth visuals
 
+        // Phase 5.6: Update alive state
+        isLocalPlayerAlive = serverSnapshot.isAlive;
+
         Vector3 serverPosition = serverSnapshot.position;
         float positionError = Vector3.Distance(predictedPosition, serverPosition);
 
@@ -608,6 +625,9 @@ public class SimplePlayerController : MonoBehaviour
     void ReconcileSecondPlayerWithServerState(PlayerSnapshot serverSnapshot)
     {
         // Reconciliation for second local player - mirror of ReconcileWithServerState
+
+        // Phase 5.6: Update alive state
+        isSecondPlayerAlive = serverSnapshot.isAlive;
 
         Vector3 serverPosition = serverSnapshot.position;
         float positionError = Vector3.Distance(secondPredictedPosition, serverPosition);
