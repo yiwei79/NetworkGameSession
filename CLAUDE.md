@@ -18,6 +18,14 @@ This command loads project context and shows current status. See [Agentic Workfl
 
 **"Loving Away"** is a 2-4 player multiplayer physics-based arena shooter built as an educational project for learning network game programming. Players compete in a circular arena using a charge-and-shoot mechanic with momentum-based movement.
 
+### Core Gameplay Features
+- **Charge-to-Shoot:** Hold Space 0-2 seconds for variable range (5-20u), arc height (2-6u), and speed (8-12 u/s)
+- **Health System:** 5 HP per player, 1 damage per projectile hit, color-coded health bars (green → yellow → red)
+- **Knockback Physics:** Projectile hits apply knockback force (12 u/s), pushing players toward arena boundary
+- **Boundary Instant Death:** Players die immediately when crossing 15u arena boundary (bypasses health system)
+- **Chibi Character Design:** Big head (60%), small body (40%), cute proportions (1.5u tall)
+- **Visual Feedback:** Charge indicators, muzzle flash, cooldown bars (0.5s), hit/death particle effects
+
 | Attribute | Value |
 |-----------|-------|
 | Unity Version | 6000.2.6f1 (Unity 6) |
@@ -25,6 +33,8 @@ This command loads project context and shows current status. See [Agentic Workfl
 | Input System | New Input System (`UnityEngine.InputSystem`) |
 | Network Model | Server-authoritative, UDP, passive replication |
 | Max Players | 4 |
+| Movement Speed | 3.5 u/s (heavier "Animal Party" feel) |
+| Acceleration | 25 u/s² (momentum-based) |
 
 ### Current Status
 
@@ -33,14 +43,15 @@ This command loads project context and shows current status. See [Agentic Workfl
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
 | Deliverable 3 | ✅ Complete | Serialization + Input delay fixes |
-| **Deliverable 4** | ⏳ In Progress | World State Replication |
+| **Deliverable 4** | ✅ Complete | World State Replication + Gameplay Features |
 | Deliverable 5 | ❌ Not Started | Final Demo |
 
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 1-2 | ✅ Complete | Movement, UDP networking |
-| **Phase 3** | ⏳ In Progress | Projectiles (55% done) - Arc trajectory complete |
-| Phase 4 | ⏳ Partial | Prediction done, dual local player done, interpolation pending |
+| Phase 3 | ✅ Complete | Projectile system with arc trajectory, hit detection, health/damage |
+| Phase 4 | ✅ Complete | Client prediction, dual local player, visual dressing |
+| Phase 5 | ✅ Complete | Charge-to-shoot, chibi characters, cooldown indicators, game feel polish |
 
 ---
 
@@ -213,9 +224,12 @@ if (keyboard.wKey.isPressed) { }
 
 | Message | Size | Direction | Purpose |
 |---------|------|-----------|---------|
-| ClientInputMessage | 18 bytes | Client → Server | WASD + shoot + sequence |
-| ServerStateUpdateMessage | 6 + 28n bytes | Server → Clients | Player positions |
-| ProjectileSpawnMessage | 53 bytes | Server → Clients | Arc projectile creation |
+| ClientInputMessage | 22 bytes | Client → Server | WASD + shoot + charge value + sequence |
+| ServerStateUpdateMessage | 6 + 30n bytes | Server → Clients | Player positions + health + alive state |
+| ProjectileSpawnMessage | 53 bytes | Server → Clients | Arc projectile creation with trajectory |
+| ProjectileHitMessage | 23 bytes | Server → Clients | Hit notification with damage |
+| PlayerDeathMessage | 17 bytes | Server → Clients | Death notification |
+| PlayerRespawnMessage | 17 bytes | Server → Clients | Respawn notification |
 | ConnectMessage | 5 bytes | Client → Server | Initial connection |
 
 ### Timing
@@ -292,33 +306,62 @@ public static XMessage DeserializeX(byte[] data)
 
 ## Phase Implementation Details
 
-### Phase 3: Projectile System (In Progress)
+### Phase 3: Projectile System ✅ COMPLETE
 
-**Completed:**
+**Implemented:**
 - ✅ ProjectileSpawnMessage protocol (53 bytes with arc data)
 - ✅ Binary serialization for projectiles
-- ✅ Server spawning (0.5s cooldown, facing-direction based)
+- ✅ Server spawning (0.5s cooldown, facing-direction based, charge-based trajectory)
 - ✅ Client rendering (arc trajectory with trail)
-- ✅ Parametric arc trajectory (3u height, 10u range)
+- ✅ Parametric arc trajectory (2-6u height, 5-20u range based on charge)
 - ✅ Trail renderer (yellow → orange gradient)
+- ✅ Hit detection (1.5u collision radius, matches chibi character size)
+- ✅ Knockback system (12 u/s force away from projectile impact)
+- ✅ Health system (5 HP, 1 damage per hit, death at 0 HP)
+- ✅ Health bars (color-coded: green → yellow → red)
 
-**Pending:**
-- ❌ Hit detection
-- ❌ Knockback
+### Phase 4: Optimization ✅ COMPLETE
 
-### Phase 4: Optimization (Partial)
-
-**Completed:**
-- ✅ Client-side prediction (local player)
+**Implemented:**
+- ✅ Client-side prediction (local player, momentum-based)
 - ✅ Sequence numbers (foundation for reconciliation)
 - ✅ Input rate limiting (30Hz)
 - ✅ Dual local player testing (P1: WASD+Space, P2: Arrows+RShift)
+- ✅ Visual dressing (PlayerVisualController separation)
+- ✅ Chibi character design (big head 60%, small body 40%)
+- ✅ Dead player handling (stop prediction when dead)
 
-**Pending:**
-- ❌ Interpolation buffer
-- ❌ Remote player interpolation
-- ❌ Server reconciliation
-- ❌ Lag compensation
+**Deferred to Phase 5:**
+- ⏸ Interpolation buffer (not needed for current scope)
+- ⏸ Remote player interpolation (direct server position works well)
+- ⏸ Server reconciliation (blending approach sufficient)
+- ⏸ Lag compensation (charge-to-shoot reduces need)
+
+### Phase 5: Gameplay Polish ✅ COMPLETE
+
+**Session 5A - Visual Dressing:**
+- ✅ PlayerVisualController (separates visuals from network logic)
+- ✅ Chibi character proportions (1.5u tall, head 0.45 radius, body 0.35 radius)
+- ✅ Color theming (body color, brighter head, white eye)
+
+**Session 5B - Charge-to-Shoot:**
+- ✅ Charge mechanic (hold 0-2s, scales range/arc/speed)
+- ✅ Charge value persistence (captured at button release, sent at 30Hz)
+- ✅ Server trajectory calculation (server-authoritative)
+- ✅ Charge visual feedback (growing indicator, body tint)
+
+**Session 5C - Cooldown Visual:**
+- ✅ Client-side cooldown tracking (0.5s server cooldown)
+- ✅ Cooldown bar UI (fills red→green over 0.5s)
+- ✅ "Game sense" feedback (players can feel shooting rhythm)
+
+**Session 5D - Game Feel Refinements:**
+- ✅ Heavier physics (3.5 u/s movement, 25 u/s² acceleration)
+- ✅ Slower projectiles (8-12 u/s instead of 12-18 u/s)
+- ✅ Grounded characters (Y=0.0, no floating)
+- ✅ Boundary instant death (removed client bounce, server-authoritative)
+- ✅ Larger hit detection (1.5u radius for easier hits)
+- ✅ Bug fixes (boundary death struct overwrite, projectile landing height)
 
 ---
 
@@ -354,6 +397,10 @@ public static XMessage DeserializeX(byte[] data)
 | Server logic | `Assets/Scripts/Gameplay/ServerGameState.cs` |
 | Client logic | `Assets/Scripts/Gameplay/SimplePlayerController.cs` |
 | Projectile | `Assets/Scripts/Gameplay/Projectile.cs` |
+| Player visuals | `Assets/Scripts/Gameplay/PlayerVisualController.cs` |
+| Charge/cooldown feedback | `Assets/Scripts/Gameplay/ShootVisualFeedback.cs` |
+| Health bar UI | `Assets/Scripts/UI/PlayerHealthBar.cs` |
+| Arena setup | `Assets/Scripts/Gameplay/ArenaSetup.cs` |
 
 ### Testing
 
@@ -376,4 +423,4 @@ When starting a new Claude Code session:
 
 ---
 
-*Last Updated: 2025-12-14 | Last Change: Added official Claude Code agents integration*
+*Last Updated: 2025-12-21 | Last Change: Completed Phases 3-5 (Projectiles, Health, Charge-to-Shoot, Chibi Characters, Game Feel)*
