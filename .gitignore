@@ -80,3 +80,13 @@ crashlytics-build.properties
 
 # IDE workspace files
 *.code-workspace
+
+/.claude
+CLAUDE.md
+# Claude Code - ignore user-specific settings but track agents/commands
+/.claude/settings.local.json
+# Note: .claude/agents/ and .claude/commands/ are tracked for team sharing
+/.claude/agents
+/.claude
+Docs/Deliverable 5/PROJECT_OVERVIEW.md
+Docs/Deliverable 5/DELIVERABLE_5_OVERVIEW.md

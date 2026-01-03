@@ -22,6 +22,10 @@ public class GameNetworkManager : MonoBehaviour
     [Header("Client Settings")]
     public float clientSendRate = 30f; // Hz (33ms per input)
     public uint localPlayerId = 0;
+
+    [Header("Dual Local Player Testing")]
+    public bool enableSecondLocalPlayer = false;
+    public uint secondLocalPlayerId = 1;
     
     // Threading
     private Thread serverThread;
@@ -40,11 +44,19 @@ public class GameNetworkManager : MonoBehaviour
     private Queue<ClientInputMessage> incomingInputQueue;
     private Queue<ServerStateUpdateMessage> incomingStateQueue;
     private Queue<ClientInputMessage> outgoingInputQueue;
-    
+    private Queue<ProjectileSpawnMessage> incomingProjectileQueue;
+    private Queue<ProjectileHitMessage> incomingHitQueue;
+    private Queue<PlayerDeathMessage> incomingDeathQueue;
+    private Queue<PlayerRespawnMessage> incomingRespawnQueue;
+
     // Locks for thread safety
     private object inputQueueLock = new object();
     private object stateQueueLock = new object();
     private object outgoingQueueLock = new object();
+    private object projectileQueueLock = new object();
+    private object hitQueueLock = new object();
+    private object deathQueueLock = new object();
+    private object respawnQueueLock = new object();
     
     // Connection tracking
     private Dictionary<string, uint> endpointToPlayerId;
@@ -56,7 +68,10 @@ public class GameNetworkManager : MonoBehaviour
 
     // FIX 3: Input sequence tracking
     private uint inputSequenceNumber = 0;
-    
+
+    // Lab 8-9: Network simulation for testing
+    private NetworkSimulator networkSimulator = new NetworkSimulator();
+
     // Timing for worker threads (thread-safe, not Unity Time)
     private Stopwatch serverStopwatch;
     private Stopwatch clientStopwatch;
@@ -67,6 +82,10 @@ public class GameNetworkManager : MonoBehaviour
         incomingInputQueue = new Queue<ClientInputMessage>();
         incomingStateQueue = new Queue<ServerStateUpdateMessage>();
         outgoingInputQueue = new Queue<ClientInputMessage>();
+        incomingProjectileQueue = new Queue<ProjectileSpawnMessage>();
+        incomingHitQueue = new Queue<ProjectileHitMessage>();
+        incomingDeathQueue = new Queue<PlayerDeathMessage>();
+        incomingRespawnQueue = new Queue<PlayerRespawnMessage>();
         connectedClients = new List<EndPoint>();
         endpointToPlayerId = new Dictionary<string, uint>();
         
@@ -83,6 +102,14 @@ public class GameNetworkManager : MonoBehaviour
             // Add local player (ID 0) when server starts
             serverGameState.AddPlayer(localPlayerId);
             UnityEngine.Debug.Log($"[GameNetworkManager] Started as SERVER with local player {localPlayerId}");
+
+            // Add second local player if enabled (for testing)
+            if (enableSecondLocalPlayer)
+            {
+                serverGameState.AddPlayer(secondLocalPlayerId);
+                UnityEngine.Debug.Log($"[GameNetworkManager] Added second local player {secondLocalPlayerId} for testing");
+            }
+
             serverThread = new Thread(ServerProcess);
             serverThread.Start();
             UnityEngine.Debug.Log("[GameNetworkManager] Started as SERVER");
@@ -220,20 +247,31 @@ public class GameNetworkManager : MonoBehaviour
     {
         // Don't broadcast if no players in game state
         if (serverGameState.GetPlayerCount() == 0) return;
-        
+
         PlayerSnapshot[] snapshots = serverGameState.GetPlayerSnapshots();
+
+        // Lab 8: Get ACKs for piggybacking on state updates
+        Dictionary<uint, uint> acks = serverGameState.GetLastProcessedSequences();
+
         ServerStateUpdateMessage stateMsg = new ServerStateUpdateMessage(
             serverGameState.GetServerTime(),
-            snapshots
+            snapshots,
+            acks  // Lab 8: Include ACKs
         );
-        
+
         byte[] data = Serializer.SerializeServerState(stateMsg);
-        
+
         // If we have connected remote clients, send via UDP
         if (connectedClients.Count > 0)
         {
             foreach (EndPoint client in connectedClients)
             {
+                // Lab 8-9: Simulate network conditions
+                if (!networkSimulator.SimulateAndCheckSend())
+                {
+                    continue; // Packet dropped by simulator
+                }
+
                 try
                 {
                     serverSocket.SendTo(data, client);
@@ -245,15 +283,167 @@ public class GameNetworkManager : MonoBehaviour
                 }
             }
         }
-        
+
         // Even if no remote clients, queue state for local client thread (when running as server+client)
         // This allows the local player to see their own state updates
         lock (stateQueueLock)
         {
             incomingStateQueue.Enqueue(stateMsg);
         }
+
+        // Broadcast pending projectile spawns
+        BroadcastProjectileSpawns();
+
+        // Broadcast pending projectile hits
+        BroadcastProjectileHits();
+
+        // Broadcast pending player deaths (Session 4)
+        BroadcastPlayerDeaths();
+
+        // Broadcast pending player respawns (Session 4)
+        BroadcastPlayerRespawns();
     }
-    
+
+    void BroadcastProjectileSpawns()
+    {
+        ProjectileSpawnMessage[] spawns = serverGameState.GetPendingProjectileSpawns();
+
+        if (spawns.Length == 0) return;
+
+        foreach (ProjectileSpawnMessage spawnMsg in spawns)
+        {
+            byte[] data = Serializer.SerializeProjectileSpawn(spawnMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send projectile spawn to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see projectiles)
+            lock (projectileQueueLock)
+            {
+                incomingProjectileQueue.Enqueue(spawnMsg);
+            }
+        }
+    }
+
+    void BroadcastProjectileHits()
+    {
+        ProjectileHitMessage[] hits = serverGameState.GetPendingHitMessages();
+
+        if (hits.Length == 0) return;
+
+        foreach (ProjectileHitMessage hitMsg in hits)
+        {
+            byte[] data = Serializer.SerializeProjectileHit(hitMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send projectile hit to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see hits)
+            lock (hitQueueLock)
+            {
+                incomingHitQueue.Enqueue(hitMsg);
+            }
+        }
+    }
+
+    void BroadcastPlayerDeaths()
+    {
+        PlayerDeathMessage[] deaths = serverGameState.GetPendingDeathMessages();
+
+        if (deaths.Length == 0) return;
+
+        foreach (PlayerDeathMessage deathMsg in deaths)
+        {
+            byte[] data = Serializer.SerializePlayerDeath(deathMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send player death to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see deaths)
+            lock (deathQueueLock)
+            {
+                incomingDeathQueue.Enqueue(deathMsg);
+            }
+        }
+    }
+
+    void BroadcastPlayerRespawns()
+    {
+        PlayerRespawnMessage[] respawns = serverGameState.GetPendingRespawnMessages();
+
+        if (respawns.Length == 0) return;
+
+        foreach (PlayerRespawnMessage respawnMsg in respawns)
+        {
+            byte[] data = Serializer.SerializePlayerRespawn(respawnMsg);
+
+            // Send to remote clients
+            if (connectedClients.Count > 0)
+            {
+                foreach (EndPoint client in connectedClients)
+                {
+                    try
+                    {
+                        serverSocket.SendTo(data, client);
+                        packetsSent++;
+                    }
+                    catch (SocketException e)
+                    {
+                        UnityEngine.Debug.LogError($"[Server] Failed to send player respawn to {client}: {e.Message}");
+                    }
+                }
+            }
+
+            // Queue for local client (server also needs to see respawns)
+            lock (respawnQueueLock)
+            {
+                incomingRespawnQueue.Enqueue(respawnMsg);
+            }
+        }
+    }
+
     void UpdateServer()
     {
         // Process incoming input messages on main thread
@@ -344,18 +534,60 @@ public class GameNetworkManager : MonoBehaviour
         // Copy buffer to prevent overwriting
         byte[] data = new byte[bytesRead];
         System.Array.Copy(buffer, data, bytesRead);
-        
+
         MessageType msgType = Serializer.PeekMessageType(data);
-        
-        if (msgType == MessageType.ServerStateUpdate)
+
+        switch (msgType)
         {
-            ServerStateUpdateMessage stateMsg = Serializer.DeserializeServerState(data);
-            
-            // Queue for main thread processing
-            lock (stateQueueLock)
-            {
-                incomingStateQueue.Enqueue(stateMsg);
-            }
+            case MessageType.ServerStateUpdate:
+                ServerStateUpdateMessage stateMsg = Serializer.DeserializeServerState(data);
+
+                // Queue for main thread processing
+                lock (stateQueueLock)
+                {
+                    incomingStateQueue.Enqueue(stateMsg);
+                }
+                break;
+
+            case MessageType.ProjectileSpawn:
+                ProjectileSpawnMessage projectileMsg = Serializer.DeserializeProjectileSpawn(data);
+
+                // Queue for main thread processing
+                lock (projectileQueueLock)
+                {
+                    incomingProjectileQueue.Enqueue(projectileMsg);
+                }
+                break;
+
+            case MessageType.ProjectileHit:
+                ProjectileHitMessage hitMsg = Serializer.DeserializeProjectileHit(data);
+
+                // Queue for main thread processing
+                lock (hitQueueLock)
+                {
+                    incomingHitQueue.Enqueue(hitMsg);
+                }
+                break;
+
+            case MessageType.PlayerDeath:
+                PlayerDeathMessage deathMsg = Serializer.DeserializePlayerDeath(data);
+
+                // Queue for main thread processing
+                lock (deathQueueLock)
+                {
+                    incomingDeathQueue.Enqueue(deathMsg);
+                }
+                break;
+
+            case MessageType.PlayerRespawn:
+                PlayerRespawnMessage respawnMsg = Serializer.DeserializePlayerRespawn(data);
+
+                // Queue for main thread processing
+                lock (respawnQueueLock)
+                {
+                    incomingRespawnQueue.Enqueue(respawnMsg);
+                }
+                break;
         }
     }
     
@@ -367,7 +599,13 @@ public class GameNetworkManager : MonoBehaviour
             {
                 ClientInputMessage input = outgoingInputQueue.Dequeue();
                 byte[] data = Serializer.SerializeClientInput(input);
-                
+
+                // Lab 8-9: Simulate network conditions (packet loss + latency)
+                if (!networkSimulator.SimulateAndCheckSend())
+                {
+                    continue; // Packet dropped by simulator
+                }
+
                 try
                 {
                     clientSocket.SendTo(data, serverEndpoint);
@@ -393,39 +631,168 @@ public class GameNetworkManager : MonoBehaviour
                 BroadcastStateUpdate(stateMsg);
             }
         }
+
+        // Process incoming projectile spawns on main thread
+        lock (projectileQueueLock)
+        {
+            while (incomingProjectileQueue.Count > 0)
+            {
+                ProjectileSpawnMessage projectileMsg = incomingProjectileQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastProjectileSpawn(projectileMsg);
+            }
+        }
+
+        // Process incoming projectile hits on main thread
+        lock (hitQueueLock)
+        {
+            while (incomingHitQueue.Count > 0)
+            {
+                ProjectileHitMessage hitMsg = incomingHitQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastProjectileHit(hitMsg);
+            }
+        }
+
+        // Process incoming player deaths on main thread (Session 4)
+        lock (deathQueueLock)
+        {
+            while (incomingDeathQueue.Count > 0)
+            {
+                PlayerDeathMessage deathMsg = incomingDeathQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastPlayerDeath(deathMsg);
+            }
+        }
+
+        // Process incoming player respawns on main thread (Session 4)
+        lock (respawnQueueLock)
+        {
+            while (incomingRespawnQueue.Count > 0)
+            {
+                PlayerRespawnMessage respawnMsg = incomingRespawnQueue.Dequeue();
+                // Notify listeners (SimplePlayerController will handle this)
+                BroadcastPlayerRespawn(respawnMsg);
+            }
+        }
     }
-    
+
     #endregion
     
     #region Public API
     
     /// <summary>
     /// Sends client input to the server (called from SimplePlayerController)
+    /// Phase 2: Added chargeValue parameter for charge-to-shoot mechanic
     /// </summary>
-    public void SendInput(Vector2 moveDirection, bool shootButton)
+    public void SendInput(Vector2 moveDirection, bool shootButton, float chargeValue)
+    {
+        SendInputForPlayer(localPlayerId, moveDirection, shootButton, chargeValue);
+    }
+
+    /// <summary>
+    /// Sends client input for a specific player to the server
+    /// Used for dual local player testing mode
+    /// Phase 2: Added chargeValue parameter for charge-to-shoot mechanic
+    /// </summary>
+    public void SendInputForPlayer(uint playerId, Vector2 moveDirection, bool shootButton, float chargeValue)
     {
         // FIX 3: Assign and increment sequence number
         uint currentSequence = inputSequenceNumber++;
 
-        ClientInputMessage input = new ClientInputMessage(localPlayerId, currentSequence, moveDirection, shootButton);
+        ClientInputMessage input = new ClientInputMessage(playerId, currentSequence, moveDirection, shootButton, chargeValue);
 
         lock (outgoingQueueLock)
         {
             outgoingInputQueue.Enqueue(input);
         }
     }
-    
+
+    /// <summary>
+    /// Lab 8: Resends a client input that was not ACKed by the server
+    /// Used for input reliability over UDP
+    /// </summary>
+    public void ResendInput(ClientInputMessage input)
+    {
+        lock (outgoingQueueLock)
+        {
+            outgoingInputQueue.Enqueue(input);
+        }
+    }
+
+    /// <summary>
+    /// Lab 8: Returns the last sequence number that was assigned to an input
+    /// Used by input history buffer to track sent inputs
+    /// </summary>
+    public uint GetLastSequenceNumber()
+    {
+        return inputSequenceNumber - 1; // Return the last assigned sequence
+    }
+
+    /// <summary>
+    /// Lab 8-9: Returns the network simulator for GUI controls
+    /// Allows debug UI to configure packet loss, latency, and jitter
+    /// </summary>
+    public NetworkSimulator GetNetworkSimulator()
+    {
+        return networkSimulator;
+    }
+
     /// <summary>
     /// Event for state updates received from server
     /// </summary>
     public delegate void StateUpdateHandler(ServerStateUpdateMessage stateMsg);
     public event StateUpdateHandler OnStateUpdate;
-    
+
     private void BroadcastStateUpdate(ServerStateUpdateMessage stateMsg)
     {
         OnStateUpdate?.Invoke(stateMsg);
     }
-    
+
+    /// <summary>
+    /// Event for projectile spawns received from server
+    /// </summary>
+    public delegate void ProjectileSpawnHandler(ProjectileSpawnMessage spawnMsg);
+    public event ProjectileSpawnHandler OnProjectileSpawn;
+
+    private void BroadcastProjectileSpawn(ProjectileSpawnMessage spawnMsg)
+    {
+        OnProjectileSpawn?.Invoke(spawnMsg);
+    }
+
+    /// <summary>
+    /// Event for projectile hits received from server
+    /// </summary>
+    public delegate void ProjectileHitHandler(ProjectileHitMessage hitMsg);
+    public event ProjectileHitHandler OnProjectileHit;
+
+    private void BroadcastProjectileHit(ProjectileHitMessage hitMsg)
+    {
+        OnProjectileHit?.Invoke(hitMsg);
+    }
+
+    /// <summary>
+    /// Event for player deaths received from server (Session 4)
+    /// </summary>
+    public delegate void PlayerDeathHandler(PlayerDeathMessage deathMsg);
+    public event PlayerDeathHandler OnPlayerDeath;
+
+    private void BroadcastPlayerDeath(PlayerDeathMessage deathMsg)
+    {
+        OnPlayerDeath?.Invoke(deathMsg);
+    }
+
+    /// <summary>
+    /// Event for player respawns received from server (Session 4)
+    /// </summary>
+    public delegate void PlayerRespawnHandler(PlayerRespawnMessage respawnMsg);
+    public event PlayerRespawnHandler OnPlayerRespawn;
+
+    private void BroadcastPlayerRespawn(PlayerRespawnMessage respawnMsg)
+    {
+        OnPlayerRespawn?.Invoke(respawnMsg);
+    }
+
     /// <summary>
     /// Gets network statistics for debug display
     /// FIX 3: Now includes sequence number
