@@ -68,7 +68,10 @@ public class GameNetworkManager : MonoBehaviour
 
     // FIX 3: Input sequence tracking
     private uint inputSequenceNumber = 0;
-    
+
+    // Lab 8-9: Network simulation for testing
+    private NetworkSimulator networkSimulator = new NetworkSimulator();
+
     // Timing for worker threads (thread-safe, not Unity Time)
     private Stopwatch serverStopwatch;
     private Stopwatch clientStopwatch;
@@ -246,9 +249,14 @@ public class GameNetworkManager : MonoBehaviour
         if (serverGameState.GetPlayerCount() == 0) return;
 
         PlayerSnapshot[] snapshots = serverGameState.GetPlayerSnapshots();
+
+        // Lab 8: Get ACKs for piggybacking on state updates
+        Dictionary<uint, uint> acks = serverGameState.GetLastProcessedSequences();
+
         ServerStateUpdateMessage stateMsg = new ServerStateUpdateMessage(
             serverGameState.GetServerTime(),
-            snapshots
+            snapshots,
+            acks  // Lab 8: Include ACKs
         );
 
         byte[] data = Serializer.SerializeServerState(stateMsg);
@@ -258,6 +266,12 @@ public class GameNetworkManager : MonoBehaviour
         {
             foreach (EndPoint client in connectedClients)
             {
+                // Lab 8-9: Simulate network conditions
+                if (!networkSimulator.SimulateAndCheckSend())
+                {
+                    continue; // Packet dropped by simulator
+                }
+
                 try
                 {
                     serverSocket.SendTo(data, client);
@@ -585,7 +599,13 @@ public class GameNetworkManager : MonoBehaviour
             {
                 ClientInputMessage input = outgoingInputQueue.Dequeue();
                 byte[] data = Serializer.SerializeClientInput(input);
-                
+
+                // Lab 8-9: Simulate network conditions (packet loss + latency)
+                if (!networkSimulator.SimulateAndCheckSend())
+                {
+                    continue; // Packet dropped by simulator
+                }
+
                 try
                 {
                     clientSocket.SendTo(data, serverEndpoint);
@@ -687,7 +707,37 @@ public class GameNetworkManager : MonoBehaviour
             outgoingInputQueue.Enqueue(input);
         }
     }
-    
+
+    /// <summary>
+    /// Lab 8: Resends a client input that was not ACKed by the server
+    /// Used for input reliability over UDP
+    /// </summary>
+    public void ResendInput(ClientInputMessage input)
+    {
+        lock (outgoingQueueLock)
+        {
+            outgoingInputQueue.Enqueue(input);
+        }
+    }
+
+    /// <summary>
+    /// Lab 8: Returns the last sequence number that was assigned to an input
+    /// Used by input history buffer to track sent inputs
+    /// </summary>
+    public uint GetLastSequenceNumber()
+    {
+        return inputSequenceNumber - 1; // Return the last assigned sequence
+    }
+
+    /// <summary>
+    /// Lab 8-9: Returns the network simulator for GUI controls
+    /// Allows debug UI to configure packet loss, latency, and jitter
+    /// </summary>
+    public NetworkSimulator GetNetworkSimulator()
+    {
+        return networkSimulator;
+    }
+
     /// <summary>
     /// Event for state updates received from server
     /// </summary>

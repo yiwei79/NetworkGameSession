@@ -10,6 +10,10 @@ public class ServerGameState
     // Player state storage
     private Dictionary<uint, PlayerState> players;
 
+    // Lab 8: ACK tracking for input reliability
+    private Dictionary<uint, uint> lastProcessedSequence;        // playerId → last processed sequence number
+    private Dictionary<uint, HashSet<uint>> processedSequences;  // playerId → set of processed sequences (for deduplication)
+
     // Game timing
     private float serverTime;
 
@@ -44,6 +48,8 @@ public class ServerGameState
     public ServerGameState()
     {
         players = new Dictionary<uint, PlayerState>();
+        lastProcessedSequence = new Dictionary<uint, uint>();       // Lab 8: ACK tracking
+        processedSequences = new Dictionary<uint, HashSet<uint>>(); // Lab 8: Deduplication
         serverTime = 0f;
         pendingProjectileSpawns = new Queue<ProjectileSpawnMessage>();
         pendingHitMessages = new Queue<ProjectileHitMessage>();
@@ -112,6 +118,7 @@ public class ServerGameState
     /// <summary>
     /// Processes a client input message and stores it for the next physics update
     /// Inputs are stored immediately but applied during UpdateState with proper deltaTime
+    /// Lab 8: Added deduplication and ACK tracking
     /// </summary>
     public void ProcessInput(ClientInputMessage input)
     {
@@ -122,7 +129,30 @@ public class ServerGameState
             AddPlayer(input.playerId);
             return;
         }
-        
+
+        // Lab 8: Deduplication check
+        if (!processedSequences.ContainsKey(input.playerId))
+        {
+            processedSequences[input.playerId] = new HashSet<uint>();
+        }
+
+        if (processedSequences[input.playerId].Contains(input.sequenceNumber))
+        {
+            UnityEngine.Debug.LogWarning($"[ServerGameState] Duplicate input seq {input.sequenceNumber} from player {input.playerId} - skipping");
+            return; // Already processed this input
+        }
+
+        // Lab 8: Mark as processed and update last processed sequence
+        processedSequences[input.playerId].Add(input.sequenceNumber);
+        lastProcessedSequence[input.playerId] = input.sequenceNumber;
+
+        // Lab 8: Prune old sequences (keep last 100 to limit memory usage)
+        if (processedSequences[input.playerId].Count > 100)
+        {
+            uint minSeq = input.sequenceNumber - 100;
+            processedSequences[input.playerId].RemoveWhere(seq => seq < minSeq);
+        }
+
         PlayerState player = players[input.playerId];
 
         // Dead players can't move or shoot (Session 4)
@@ -616,7 +646,16 @@ public class ServerGameState
     {
         return players.Count;
     }
-    
+
+    /// <summary>
+    /// Lab 8: Gets the last processed sequence number for each player (for ACK piggybacking)
+    /// Returns a copy of the dictionary to avoid threading issues
+    /// </summary>
+    public Dictionary<uint, uint> GetLastProcessedSequences()
+    {
+        return new Dictionary<uint, uint>(lastProcessedSequence);
+    }
+
     #endregion
 }
 

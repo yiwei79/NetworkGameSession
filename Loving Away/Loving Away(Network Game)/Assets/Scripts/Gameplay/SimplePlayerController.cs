@@ -101,6 +101,17 @@ public class SimplePlayerController : MonoBehaviour
     private float lastServerTime;
     private float lastStateUpdateTime;
     private float connectionTimeout = 5f;
+
+    // Lab 8: Input history and ACK tracking
+    private InputHistoryBuffer localInputHistory = new InputHistoryBuffer();
+    private InputHistoryBuffer secondInputHistory = new InputHistoryBuffer();
+    private uint lastAckedSequenceP1 = 0;
+    private uint lastAckedSequenceP2 = 0;
+    private float retransmissionTimeout = 0.15f; // 150ms (3 server ticks @ 20Hz)
+
+    // Lab 9: Snapshot buffer for interpolation
+    private SnapshotBuffer snapshotBuffer = new SnapshotBuffer();
+    private float interpolationDelay = 0.1f; // 100ms - render remote players in the past for smooth interpolation
     
     void Start()
     {
@@ -160,6 +171,9 @@ public class SimplePlayerController : MonoBehaviour
     {
         CollectInput();
         SendInputToServer();
+
+        // Lab 8: Check for inputs needing retransmission
+        CheckRetransmissions();
 
         // FIX 2: Predict local player movement immediately
         if (enablePrediction)
@@ -334,6 +348,17 @@ public class SimplePlayerController : MonoBehaviour
             // Phase 2: Send Player 1 input with PENDING charge value (captured at button release)
             networkManager.SendInput(currentInput, shootButtonPressed, pendingChargeValue);
 
+            // Lab 8: Store sent input in history for retransmission
+            uint sentSequence = networkManager.GetLastSequenceNumber();
+            ClientInputMessage sentInput = new ClientInputMessage(
+                localPlayerId,
+                sentSequence,
+                currentInput,
+                shootButtonPressed,
+                pendingChargeValue
+            );
+            localInputHistory.AddInput(sentInput, Time.time);
+
             // Clear Player 1 shoot signal after sending
             if (shootSignalPending)
             {
@@ -347,6 +372,17 @@ public class SimplePlayerController : MonoBehaviour
             {
                 networkManager.SendInputForPlayer(secondLocalPlayerId, secondPlayerInput, secondPlayerShootPressed, secondPlayerPendingChargeValue);
 
+                // Lab 8: Store Player 2 input in history
+                uint sentSequenceP2 = networkManager.GetLastSequenceNumber();
+                ClientInputMessage sentInputP2 = new ClientInputMessage(
+                    secondLocalPlayerId,
+                    sentSequenceP2,
+                    secondPlayerInput,
+                    secondPlayerShootPressed,
+                    secondPlayerPendingChargeValue
+                );
+                secondInputHistory.AddInput(sentInputP2, Time.time);
+
                 // Clear Player 2 shoot signal after sending
                 if (secondPlayerShootSignalPending)
                 {
@@ -356,6 +392,42 @@ public class SimplePlayerController : MonoBehaviour
             }
 
             lastInputSendTime = Time.time;
+        }
+    }
+
+    /// <summary>
+    /// Lab 8: Checks for inputs that need retransmission due to missing ACKs
+    /// Called every frame to detect lost inputs and resend them
+    /// </summary>
+    void CheckRetransmissions()
+    {
+        // Player 1 retransmissions
+        var toRetransmitP1 = localInputHistory.GetInputsForRetransmit(
+            lastAckedSequenceP1,
+            Time.time,
+            retransmissionTimeout
+        );
+
+        foreach (var (input, oldSendTime) in toRetransmitP1)
+        {
+            UnityEngine.Debug.Log($"[Retransmit P1] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
+            networkManager.ResendInput(input);
+        }
+
+        // Player 2 retransmissions (if enabled)
+        if (enableSecondLocalPlayer)
+        {
+            var toRetransmitP2 = secondInputHistory.GetInputsForRetransmit(
+                lastAckedSequenceP2,
+                Time.time,
+                retransmissionTimeout
+            );
+
+            foreach (var (input, oldSendTime) in toRetransmitP2)
+            {
+                UnityEngine.Debug.Log($"[Retransmit P2] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
+                networkManager.ResendInput(input);
+            }
         }
     }
 
@@ -508,7 +580,31 @@ public class SimplePlayerController : MonoBehaviour
     {
         lastServerTime = stateMsg.serverTime;
         lastStateUpdateTime = Time.time;
-        
+
+        // Lab 9: Store snapshot in buffer for interpolation
+        snapshotBuffer.AddSnapshot(stateMsg.serverTime, stateMsg.players);
+
+        // Lab 8: Process ACKs and prune input history
+        if (stateMsg.lastProcessedSequence != null && stateMsg.lastProcessedSequence.ContainsKey(localPlayerId))
+        {
+            uint newAck = stateMsg.lastProcessedSequence[localPlayerId];
+            if (newAck > lastAckedSequenceP1)
+            {
+                lastAckedSequenceP1 = newAck;
+                localInputHistory.PruneAckedInputs(newAck);
+            }
+        }
+
+        if (enableSecondLocalPlayer && stateMsg.lastProcessedSequence != null && stateMsg.lastProcessedSequence.ContainsKey(secondLocalPlayerId))
+        {
+            uint newAck = stateMsg.lastProcessedSequence[secondLocalPlayerId];
+            if (newAck > lastAckedSequenceP2)
+            {
+                lastAckedSequenceP2 = newAck;
+                secondInputHistory.PruneAckedInputs(newAck);
+            }
+        }
+
         // Update all player positions based on server snapshot
         for (int i = 0; i < stateMsg.playerCount; i++)
         {
@@ -548,18 +644,37 @@ public class SimplePlayerController : MonoBehaviour
             }
             else
             {
-                // Remote player: Direct server position (no prediction)
-                playerObj.transform.position = snapshot.position;
+                // Lab 9: Remote player - use interpolation for smooth 60 FPS movement
+                // Render time is in the past (serverTime - interpolationDelay) to ensure smooth playback
+                float renderTime = lastServerTime - interpolationDelay;
+                PlayerSnapshot interpolated = snapshotBuffer.GetInterpolatedSnapshot(
+                    snapshot.playerId,
+                    renderTime
+                );
+
+                playerObj.transform.position = interpolated.position;
+
+                // Smooth rotation based on interpolated velocity
+                if (interpolated.velocity.magnitude > 0.1f)
+                {
+                    Vector3 lookDirection = interpolated.velocity.normalized;
+                    Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+                    playerObj.transform.rotation = Quaternion.Slerp(
+                        playerObj.transform.rotation,
+                        targetRotation,
+                        Time.deltaTime * 10f
+                    );
+                }
             }
 
-            // CRITICAL FIX: Player GameObject MUST rotate for shooting/knockback to work
-            // The PlayerVisualController is just for enhanced visuals, doesn't replace core rotation
-            if (snapshot.velocity.magnitude > 0.1f)
+            // Local players also need rotation update (for prediction)
+            if ((isFirstLocalPlayer || isSecondLocalPlayer) && snapshot.velocity.magnitude > 0.1f)
             {
+                GameObject localPlayerObj = playerObjects[snapshot.playerId];
                 Vector3 lookDirection = snapshot.velocity.normalized;
                 Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-                playerObj.transform.rotation = Quaternion.Slerp(
-                    playerObj.transform.rotation,
+                localPlayerObj.transform.rotation = Quaternion.Slerp(
+                    localPlayerObj.transform.rotation,
                     targetRotation,
                     Time.deltaTime * 10f
                 );
@@ -592,61 +707,89 @@ public class SimplePlayerController : MonoBehaviour
     {
         // FIX 2: Reconciliation - blend predicted position to match server
         // This corrects any prediction errors while maintaining smooth visuals
+        // Lab 9: Enhanced with ACK awareness to handle high-latency scenarios
 
         // Phase 5.6: Update alive state
         isLocalPlayerAlive = serverSnapshot.isAlive;
 
         Vector3 serverPosition = serverSnapshot.position;
+        Vector3 serverVelocity = serverSnapshot.velocity;
+
+        // Calculate position error
         float positionError = Vector3.Distance(predictedPosition, serverPosition);
+        float velocityError = Vector3.Distance(predictedVelocity, serverVelocity);
 
-        // If error is small, gently blend to server position
-        // If error is large (e.g., collision or lag spike), snap to server
-        float snapThreshold = 2.0f; // If more than 2 units off, something went wrong
+        // Lab 9: Use ACK data to determine if we're "ahead" of server
+        uint currentSequence = networkManager.GetLastSequenceNumber();
+        uint unprocessedInputs = currentSequence - lastAckedSequenceP1;
 
-        if (positionError > snapThreshold)
+        if (unprocessedInputs > 5)
+        {
+            // We're way ahead - server is behind (high latency)
+            // Be more conservative with corrections to avoid rubber-banding
+            float blendFactor = predictionBlendSpeed * Time.deltaTime * 0.5f;
+            predictedPosition = Vector3.Lerp(predictedPosition, serverPosition, blendFactor);
+            predictedVelocity = Vector3.Lerp(predictedVelocity, serverVelocity, blendFactor);
+
+            UnityEngine.Debug.Log($"[Reconcile] High latency: {unprocessedInputs} unprocessed inputs");
+        }
+        else if (positionError > 2.0f)
         {
             // Large error - snap to server immediately
             predictedPosition = serverPosition;
-            predictedVelocity = serverSnapshot.velocity;
-            UnityEngine.Debug.LogWarning($"[Prediction] Large error ({positionError:F2}m) - snapping to server");
+            predictedVelocity = serverVelocity;
+            UnityEngine.Debug.Log($"[Reconcile] Snap: error {positionError:F2}");
         }
         else
         {
-            // Small error - smoothly blend (this is the "Phase 4-ready" part)
+            // Small error - blend smoothly
             float blendFactor = predictionBlendSpeed * Time.deltaTime;
             predictedPosition = Vector3.Lerp(predictedPosition, serverPosition, blendFactor);
-            predictedVelocity = Vector3.Lerp(predictedVelocity, serverSnapshot.velocity, blendFactor);
+            predictedVelocity = Vector3.Lerp(predictedVelocity, serverVelocity, blendFactor);
         }
-
-        // Note: In Phase 4, this will use input buffering + timestamp-based reconciliation
-        // For now, simple blending is sufficient for Deliverable 3
     }
 
     void ReconcileSecondPlayerWithServerState(PlayerSnapshot serverSnapshot)
     {
         // Reconciliation for second local player - mirror of ReconcileWithServerState
+        // Lab 9: Enhanced with ACK awareness
 
         // Phase 5.6: Update alive state
         isSecondPlayerAlive = serverSnapshot.isAlive;
 
         Vector3 serverPosition = serverSnapshot.position;
+        Vector3 serverVelocity = serverSnapshot.velocity;
+
+        // Calculate position error
         float positionError = Vector3.Distance(secondPredictedPosition, serverPosition);
+        float velocityError = Vector3.Distance(secondPredictedVelocity, serverVelocity);
 
-        float snapThreshold = 2.0f;
+        // Lab 9: Use ACK data to determine if we're "ahead" of server
+        uint currentSequence = networkManager.GetLastSequenceNumber();
+        uint unprocessedInputs = currentSequence - lastAckedSequenceP2;
 
-        if (positionError > snapThreshold)
+        if (unprocessedInputs > 5)
         {
-            // Large error - snap to server immediately
+            // High latency - be conservative
+            float blendFactor = predictionBlendSpeed * Time.deltaTime * 0.5f;
+            secondPredictedPosition = Vector3.Lerp(secondPredictedPosition, serverPosition, blendFactor);
+            secondPredictedVelocity = Vector3.Lerp(secondPredictedVelocity, serverVelocity, blendFactor);
+
+            UnityEngine.Debug.Log($"[Reconcile P2] High latency: {unprocessedInputs} unprocessed inputs");
+        }
+        else if (positionError > 2.0f)
+        {
+            // Large error - snap immediately
             secondPredictedPosition = serverPosition;
-            secondPredictedVelocity = serverSnapshot.velocity;
-            UnityEngine.Debug.LogWarning($"[Prediction] Player 2 large error ({positionError:F2}m) - snapping to server");
+            secondPredictedVelocity = serverVelocity;
+            UnityEngine.Debug.Log($"[Reconcile P2] Snap: error {positionError:F2}");
         }
         else
         {
-            // Small error - smoothly blend
+            // Small error - blend smoothly
             float blendFactor = predictionBlendSpeed * Time.deltaTime;
             secondPredictedPosition = Vector3.Lerp(secondPredictedPosition, serverPosition, blendFactor);
-            secondPredictedVelocity = Vector3.Lerp(secondPredictedVelocity, serverSnapshot.velocity, blendFactor);
+            secondPredictedVelocity = Vector3.Lerp(secondPredictedVelocity, serverVelocity, blendFactor);
         }
     }
 
@@ -1039,6 +1182,33 @@ public class SimplePlayerController : MonoBehaviour
 
         GUILayout.EndVertical();
 
+        GUILayout.EndArea();
+
+        // Lab 8-9: Network Simulator Controls
+        NetworkSimulator netSim = networkManager.GetNetworkSimulator();
+        GUILayout.BeginArea(new Rect(10, 260, 320, 200));
+        GUILayout.Box("Network Simulator", headerStyle);
+        GUILayout.BeginVertical(GUI.skin.box);
+
+        // Enable/Disable toggle
+        netSim.enabled = GUILayout.Toggle(netSim.enabled, netSim.enabled ? "ENABLED (simulating network conditions)" : "Disabled (normal network)");
+
+        if (netSim.enabled)
+        {
+            // Packet Loss slider (0-50%)
+            GUILayout.Label($"Packet Loss: {netSim.packetLossPercent:F0}%");
+            netSim.packetLossPercent = GUILayout.HorizontalSlider(netSim.packetLossPercent, 0f, 50f);
+
+            // Latency slider (0-500ms)
+            GUILayout.Label($"Latency: {netSim.artificialLatencyMs}ms");
+            netSim.artificialLatencyMs = (int)GUILayout.HorizontalSlider(netSim.artificialLatencyMs, 0f, 500f);
+
+            // Jitter slider (0-100ms)
+            GUILayout.Label($"Jitter: ±{netSim.jitterVarianceMs}ms");
+            netSim.jitterVarianceMs = (int)GUILayout.HorizontalSlider(netSim.jitterVarianceMs, 0f, 100f);
+        }
+
+        GUILayout.EndVertical();
         GUILayout.EndArea();
 
         // Instructions - adjust height based on whether second player is enabled

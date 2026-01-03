@@ -43,7 +43,8 @@ public struct ClientInputMessage
 /// <summary>
 /// Server state update message sent from server to all clients
 /// Contains snapshot of all player states
-/// Size: 1 + 4 + 1 + (PlayerSnapshot size * playerCount)
+/// Size: 1 + 4 + 1 + (PlayerSnapshot size * playerCount) + 1 + (9 * ackCount)
+/// Phase 6 (Lab 8): Added piggybacked ACKs for input reliability
 /// </summary>
 public struct ServerStateUpdateMessage
 {
@@ -52,12 +53,16 @@ public struct ServerStateUpdateMessage
     public byte playerCount;       // Number of players in the snapshot array
     public PlayerSnapshot[] players;
 
-    public ServerStateUpdateMessage(float serverTime, PlayerSnapshot[] players)
+    // Lab 8: ACK data (piggybacked on state updates to save bandwidth)
+    public System.Collections.Generic.Dictionary<uint, uint> lastProcessedSequence; // playerId → last processed sequence number
+
+    public ServerStateUpdateMessage(float serverTime, PlayerSnapshot[] players, System.Collections.Generic.Dictionary<uint, uint> acks)
     {
         this.messageType = MessageType.ServerStateUpdate;
         this.serverTime = serverTime;
         this.playerCount = (byte)players.Length;
         this.players = players;
+        this.lastProcessedSequence = acks;
     }
 }
 
