@@ -4,16 +4,17 @@ using UnityEngine;
 
 /// <summary>
 /// Lab 8-9: Network condition simulator for debugging and testing
-/// Simulates packet loss, latency, and jitter to test reliability and interpolation systems
+/// Simulates packet loss to test ACK/retransmission reliability
 /// Thread-safe: can be used from worker threads (SendInput, BroadcastState)
+///
+/// NOTE: Latency/jitter simulation removed - Thread.Sleep() blocks threads and causes game lag.
+/// For latency testing, use actual network conditions (LAN, WiFi, etc.)
 /// </summary>
 public class NetworkSimulator
 {
     // Simulation parameters (public for GUI controls)
     public bool enabled = false;
     public float packetLossPercent = 0f;    // 0-100% packet loss
-    public int artificialLatencyMs = 0;      // Additional delay in milliseconds
-    public int jitterVarianceMs = 0;         // ±variance in milliseconds
 
     private System.Random random = new System.Random();
 
@@ -42,36 +43,8 @@ public class NetworkSimulator
     }
 
     /// <summary>
-    /// Simulates latency and jitter by sleeping the current thread
-    /// Call this BEFORE sending to add artificial delay
-    /// Safe to call from worker threads (uses Thread.Sleep, not Unity APIs)
-    ///
-    /// Total delay = artificialLatencyMs + random jitter (-jitterVarianceMs to +jitterVarianceMs)
-    /// </summary>
-    public void SimulateLatency()
-    {
-        if (!enabled) return;
-
-        int totalDelay = artificialLatencyMs;
-
-        // Add jitter (random variance)
-        if (jitterVarianceMs > 0)
-        {
-            int jitter = random.Next(-jitterVarianceMs, jitterVarianceMs + 1);
-            totalDelay += jitter;
-        }
-
-        // Ensure non-negative delay
-        if (totalDelay > 0)
-        {
-            Thread.Sleep(totalDelay);
-        }
-    }
-
-    /// <summary>
-    /// Combined simulation: check packet loss + apply latency
-    /// Returns true if packet should be sent (after applying latency)
-    /// Returns false if packet was dropped
+    /// Simulates network conditions before sending a packet
+    /// Returns true if packet should be sent, false if dropped
     ///
     /// Example usage in send method:
     ///   if (networkSimulator.SimulateAndCheckSend())
@@ -81,17 +54,7 @@ public class NetworkSimulator
     /// </summary>
     public bool SimulateAndCheckSend()
     {
-        if (!enabled) return true;
-
-        // Check packet loss first
-        if (!ShouldSendPacket())
-        {
-            return false; // Packet dropped
-        }
-
-        // Apply latency
-        SimulateLatency();
-
-        return true; // Packet sent (after delay)
+        // Only simulate packet loss (latency simulation removed to avoid thread blocking)
+        return ShouldSendPacket();
     }
 }

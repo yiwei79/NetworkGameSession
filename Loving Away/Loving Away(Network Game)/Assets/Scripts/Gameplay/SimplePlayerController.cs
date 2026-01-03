@@ -107,7 +107,9 @@ public class SimplePlayerController : MonoBehaviour
     private InputHistoryBuffer secondInputHistory = new InputHistoryBuffer();
     private uint lastAckedSequenceP1 = 0;
     private uint lastAckedSequenceP2 = 0;
-    private float retransmissionTimeout = 0.15f; // 150ms (3 server ticks @ 20Hz)
+    private float retransmissionTimeout = 0.1f; // 100ms (2 server ticks @ 20Hz)
+    private float lastRetransmitCheckTime = 0f; // Rate limit retransmission checks
+    private float retransmitCheckInterval = 0.05f; // Only check every 50ms (not every frame!)
 
     // Lab 9: Snapshot buffer for interpolation
     private SnapshotBuffer snapshotBuffer = new SnapshotBuffer();
@@ -397,10 +399,18 @@ public class SimplePlayerController : MonoBehaviour
 
     /// <summary>
     /// Lab 8: Checks for inputs that need retransmission due to missing ACKs
-    /// Called every frame to detect lost inputs and resend them
+    /// Called every frame but rate-limited to prevent spam
+    /// FIX: Now marks inputs as retransmitted to prevent spam
     /// </summary>
     void CheckRetransmissions()
     {
+        // FIX: Rate limit retransmission checks (don't check every frame!)
+        if (Time.time - lastRetransmitCheckTime < retransmitCheckInterval)
+        {
+            return; // Too soon, skip this frame
+        }
+        lastRetransmitCheckTime = Time.time;
+
         // Player 1 retransmissions
         var toRetransmitP1 = localInputHistory.GetInputsForRetransmit(
             lastAckedSequenceP1,
@@ -408,10 +418,16 @@ public class SimplePlayerController : MonoBehaviour
             retransmissionTimeout
         );
 
+        if (toRetransmitP1.Count > 0)
+        {
+            UnityEngine.Debug.Log($"[Retransmit] P1: {toRetransmitP1.Count} inputs need retransmit (lastAck={lastAckedSequenceP1}, currentSeq={networkManager.GetLastSequenceNumber()})");
+        }
+
         foreach (var (input, oldSendTime) in toRetransmitP1)
         {
-            UnityEngine.Debug.Log($"[Retransmit P1] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
+            UnityEngine.Debug.Log($"  [Retransmit P1] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
             networkManager.ResendInput(input);
+            localInputHistory.MarkAsRetransmitted(input.sequenceNumber, Time.time);
         }
 
         // Player 2 retransmissions (if enabled)
@@ -423,10 +439,16 @@ public class SimplePlayerController : MonoBehaviour
                 retransmissionTimeout
             );
 
+            if (toRetransmitP2.Count > 0)
+            {
+                UnityEngine.Debug.Log($"[Retransmit] P2: {toRetransmitP2.Count} inputs need retransmit (lastAck={lastAckedSequenceP2})");
+            }
+
             foreach (var (input, oldSendTime) in toRetransmitP2)
             {
-                UnityEngine.Debug.Log($"[Retransmit P2] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
+                UnityEngine.Debug.Log($"  [Retransmit P2] Seq {input.sequenceNumber} (sent {Time.time - oldSendTime:F3}s ago)");
                 networkManager.ResendInput(input);
+                secondInputHistory.MarkAsRetransmitted(input.sequenceNumber, Time.time);
             }
         }
     }
@@ -590,9 +612,15 @@ public class SimplePlayerController : MonoBehaviour
             uint newAck = stateMsg.lastProcessedSequence[localPlayerId];
             if (newAck > lastAckedSequenceP1)
             {
+                uint oldAck = lastAckedSequenceP1;
                 lastAckedSequenceP1 = newAck;
                 localInputHistory.PruneAckedInputs(newAck);
+                UnityEngine.Debug.Log($"[ACK] P1: Received ACK {newAck} (was {oldAck}, pruned {newAck - oldAck} inputs)");
             }
+        }
+        else
+        {
+            UnityEngine.Debug.LogWarning($"[ACK] P1: No ACK in state update! (dict null? {stateMsg.lastProcessedSequence == null}, contains key? {stateMsg.lastProcessedSequence?.ContainsKey(localPlayerId)})");
         }
 
         if (enableSecondLocalPlayer && stateMsg.lastProcessedSequence != null && stateMsg.lastProcessedSequence.ContainsKey(secondLocalPlayerId))
@@ -602,6 +630,7 @@ public class SimplePlayerController : MonoBehaviour
             {
                 lastAckedSequenceP2 = newAck;
                 secondInputHistory.PruneAckedInputs(newAck);
+                UnityEngine.Debug.Log($"[ACK] P2: Received ACK {newAck}");
             }
         }
 
@@ -1184,28 +1213,24 @@ public class SimplePlayerController : MonoBehaviour
 
         GUILayout.EndArea();
 
-        // Lab 8-9: Network Simulator Controls
+        // Lab 8-9: Network Simulator Controls (Packet Loss Only)
         NetworkSimulator netSim = networkManager.GetNetworkSimulator();
-        GUILayout.BeginArea(new Rect(10, 260, 320, 200));
-        GUILayout.Box("Network Simulator", headerStyle);
+        GUILayout.BeginArea(new Rect(10, 260, 320, 140));
+        GUILayout.Box("Network Simulator (Packet Loss)", headerStyle);
         GUILayout.BeginVertical(GUI.skin.box);
 
         // Enable/Disable toggle
-        netSim.enabled = GUILayout.Toggle(netSim.enabled, netSim.enabled ? "ENABLED (simulating network conditions)" : "Disabled (normal network)");
+        netSim.enabled = GUILayout.Toggle(netSim.enabled, netSim.enabled ? "ENABLED (dropping packets)" : "Disabled (normal network)");
 
         if (netSim.enabled)
         {
+            GUILayout.Space(5);
             // Packet Loss slider (0-50%)
             GUILayout.Label($"Packet Loss: {netSim.packetLossPercent:F0}%");
             netSim.packetLossPercent = GUILayout.HorizontalSlider(netSim.packetLossPercent, 0f, 50f);
 
-            // Latency slider (0-500ms)
-            GUILayout.Label($"Latency: {netSim.artificialLatencyMs}ms");
-            netSim.artificialLatencyMs = (int)GUILayout.HorizontalSlider(netSim.artificialLatencyMs, 0f, 500f);
-
-            // Jitter slider (0-100ms)
-            GUILayout.Label($"Jitter: ±{netSim.jitterVarianceMs}ms");
-            netSim.jitterVarianceMs = (int)GUILayout.HorizontalSlider(netSim.jitterVarianceMs, 0f, 100f);
+            GUILayout.Space(5);
+            GUILayout.Label("(Latency simulation removed - use real network for latency testing)", GUI.skin.GetStyle("label"));
         }
 
         GUILayout.EndVertical();

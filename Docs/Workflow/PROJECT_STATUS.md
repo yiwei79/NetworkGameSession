@@ -1,10 +1,10 @@
 # PROJECT STATUS
 
-> **Last Updated:** 2025-12-21
-> **Last Session:** Phase4-Session5D (Session 5 Complete - Game Feel Refinements)
-> **Branch:** Phase_4_2
+> **Last Updated:** 2026-01-03
+> **Last Session:** Phase6-Session6 (Deliverable 5 Complete - Labs 8-9: Network Robustness)
+> **Branch:** Phase_4_After_NewPhysics
 > **SCOPE CORRECTION:** D4 = Lab 7 only (World State Replication + Complete Game). D5 = Labs 8-9 (Network Robustness).
-> **Next Session:** Deliverable 5 planning or final D4 polish
+> **Next Session:** Final demo preparation or project wrap-up
 
 ---
 
@@ -12,10 +12,10 @@
 
 | Deliverable | Status | Progress | Due Date | Lab Coverage |
 |-------------|--------|----------|----------|--------------|
-| **Deliverable 4** | ✅ **COMPLETE** | All core features implemented | TBD | **Lab 7: World State Replication** |
-| Deliverable 5 | ❌ Not Started | 0% | TBD | Labs 8-9: Network Robustness |
+| Deliverable 4 | ✅ **COMPLETE** | All core features implemented | Completed | **Lab 7: World State Replication** |
+| **Deliverable 5** | ✅ **COMPLETE** | All network robustness features implemented | Completed | **Labs 8-9: Network Robustness** |
 
-> **✅ Session 5 Complete:** Charge-to-shoot mechanic, health system, chibi characters, cooldown indicators, and game feel polish all implemented and tested.
+> **✅ Session 6 Complete:** ACK system, input redundancy, interpolation buffer, remote player interpolation, and debug tools all implemented and tested.
 
 ---
 
@@ -49,7 +49,7 @@
 | Phase 3 | ✅ Complete | 100% | D4 | Lab 7 | Gameplay features (projectiles, hit detection, health, death/respawn) |
 | Phase 4 | ✅ Complete | 100% | D4 | Lab 7 | Visual dressing (chibi characters, particle effects) |
 | Phase 5 | ✅ Complete | 100% | D4 | Lab 7 | Polish (charge-to-shoot, cooldown indicators, game feel) |
-| **Phase 6** | ❌ Not Started | 0% | D5 | Labs 8-9 | Network Robustness (ACK, interpolation, reconciliation, lag comp) |
+| **Phase 6** | ✅ Complete | 100% | D5 | Labs 8-9 | Network Robustness (ACK, input redundancy, interpolation) |
 
 ---
 
@@ -113,27 +113,38 @@
 
 ---
 
-## Phase 5: Network Robustness (D5 - NOT in D4) ❌ NOT STARTED
+## Phase 6: Network Robustness (Labs 8-9) ✅ COMPLETE
 
 **Goal:** Deliverable 5 - Production-ready networking with reliability and latency handling
 
+### Session 6: ACK System & Interpolation ✅ COMPLETE
+
 **Lab 8: Reliability over UDP**
-| Task | Lab Session | Deliverable | Notes |
-|------|-------------|-------------|-------|
-| ACK/delivery notification system | Lab 8 | D5 | Track packet delivery |
-| Redundancy for lost inputs | Lab 8 | D5 | Resend critical messages |
-| Pending deliveries list | Lab 8 | D5 | Manage unACKed packets |
+| Task | Status | Notes |
+|------|--------|-------|
+| ACK/delivery notification system | ✅ Done | Piggybacked ACKs in ServerStateUpdateMessage |
+| Redundancy for lost inputs | ✅ Done | InputHistoryBuffer with 100ms timeout retransmission |
+| Server deduplication | ✅ Done | HashSet tracks processed sequence numbers |
 
 **Lab 9: Latency Handling**
-| Task | Lab Session | Deliverable | Notes |
-|------|-------------|-------------|-------|
-| Client-side prediction | Lab 9 | ✅ Already done | Instant local input response |
-| **Interpolation buffer** | Lab 9 | D5 | Store 5-10 snapshots with timestamps |
-| **Remote player interpolation** | Lab 9 | D5 | Smooth 60FPS rendering at Time - 100ms |
-| **Server reconciliation** | Lab 9 | D5 | Replay inputs after mismatch |
-| **Lag compensation** | Lab 9 | D5 | Rewind for hit detection |
+| Task | Status | Notes |
+|------|--------|-------|
+| Client-side prediction | ✅ Done | Already implemented in Phase 4 |
+| **Interpolation buffer** | ✅ Done | SnapshotBuffer stores 3 timestamped snapshots |
+| **Remote player interpolation** | ✅ Done | Smooth 60FPS rendering at Time - 100ms |
+| **Enhanced reconciliation** | ✅ Done | ACK-aware blend speed adjustment |
+| Lag compensation | ⏸ Deferred | Not needed for slow projectile gameplay |
 
-**⚠️ IMPORTANT:** These features were INCORRECTLY planned for D4. They belong in D5.
+**Debug Tools:**
+| Tool | Status | Notes |
+|------|--------|-------|
+| NetworkSimulator | ✅ Done | Packet loss simulation (latency removed due to Thread.Sleep blocking) |
+| ConnectionUI | ✅ Done | Simple IP/port configuration UI |
+
+**Critical Fixes:**
+- ✅ Fixed Thread.Sleep() lag issue (removed latency simulation)
+- ✅ Fixed retransmission spam (Dictionary-based buffer with lastRetransmitTime)
+- ✅ Added rate limiting to retransmission checks (50ms interval)
 
 ---
 
@@ -141,7 +152,8 @@
 
 | Session | Date | What Was Done | Files Modified |
 |---------|------|---------------|----------------|
-| **Phase4-Planning** | **2025-12-20** | **Session 5 planning: Visual polish & UI system** | **SCOPE_CORRECTION.md, SESSION_5_PLAN.md, PLANNING_SESSION_SUMMARY.md, SESSION_5_HANDOFF.md, DELIVERABLE_4_PLAN.md, PROJECT_STATUS.md** |
+| **Phase6-Session6** | **2026-01-03** | **Labs 8-9: ACK system, input redundancy, interpolation, debug tools** | **NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs, InputHistoryBuffer.cs (NEW), SnapshotBuffer.cs (NEW), NetworkSimulator.cs (NEW), ConnectionUI.cs (NEW), CLAUDE.md, PROJECT_STATUS.md** |
+| Phase4-Planning | 2025-12-20 | Session 5 planning: Visual polish & UI system | SCOPE_CORRECTION.md, SESSION_5_PLAN.md, PLANNING_SESSION_SUMMARY.md, SESSION_5_HANDOFF.md, DELIVERABLE_4_PLAN.md, PROJECT_STATUS.md |
 | Phase4-Session4.5 | 2025-12-20 | Visual effects system (hit/death/respawn particles, screen shake), VisualEffectsManager with object pooling | VisualEffectsManager.cs (NEW), SimplePlayerController.cs |
 | Phase4-Session4 | 2025-12-14 | Death/respawn system, arena boundary elimination, PlayerDeathMessage, PlayerRespawnMessage, PlayerSnapshot.isAlive | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
 | Phase4-Session3 | 2025-12-14 | Hit detection, knockback, ProjectileHitMessage, server projectile tracking | NetworkProtocol.cs, Serializer.cs, ServerGameState.cs, GameNetworkManager.cs, SimplePlayerController.cs |
@@ -191,14 +203,16 @@
 |--------|-------|-------|
 | Server Tick Rate | 20 Hz | 50ms per tick |
 | Client Send Rate | 30 Hz | Rate-limited from 60Hz |
-| ClientInputMessage | 18 bytes | Includes sequence number |
-| ServerStateUpdate | 6 + 28n bytes | n = player count (29 bytes per player snapshot) |
+| ClientInputMessage | 22 bytes | Includes sequence number |
+| ServerStateUpdate | 6 + 30n + 8n bytes | n = player count (30 bytes per snapshot + 8 bytes ACK per player) |
 | ProjectileSpawnMessage | 53 bytes | Position, velocity, spawn time, arc params |
-| ProjectileHitMessage | 21 bytes | Projectile ID, hit player ID, hit position |
+| ProjectileHitMessage | 23 bytes | Projectile ID, hit player ID, hit position |
 | PlayerDeathMessage | 17 bytes | Player ID, death position |
 | PlayerRespawnMessage | 17 bytes | Player ID, respawn position |
-| PlayerSnapshot | 29 bytes | Position (12), velocity (12), facing (4), isAlive (1) |
+| PlayerSnapshot | 30 bytes | Position (12), velocity (12), health (1), isAlive (1), facing (4) |
 | Max Players | 4 | Design target |
+| **Retransmission Timeout** | 100ms | **Lab 8: Inputs retransmitted if not ACKed** |
+| **Interpolation Delay** | 100ms | **Lab 9: Remote players rendered in the past** |
 
 ---
 

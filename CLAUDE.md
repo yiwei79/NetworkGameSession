@@ -43,8 +43,8 @@ This command loads project context and shows current status. See [Agentic Workfl
 | Deliverable | Status | Notes |
 |-------------|--------|-------|
 | Deliverable 3 | ✅ Complete | Serialization + Input delay fixes |
-| **Deliverable 4** | ✅ Complete | World State Replication + Gameplay Features |
-| Deliverable 5 | ❌ Not Started | Final Demo |
+| Deliverable 4 | ✅ Complete | World State Replication + Gameplay Features |
+| **Deliverable 5** | ✅ Complete | Network Robustness (Labs 8-9) |
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -52,6 +52,7 @@ This command loads project context and shows current status. See [Agentic Workfl
 | Phase 3 | ✅ Complete | Projectile system with arc trajectory, hit detection, health/damage |
 | Phase 4 | ✅ Complete | Client prediction, dual local player, visual dressing |
 | Phase 5 | ✅ Complete | Charge-to-shoot, chibi characters, cooldown indicators, game feel polish |
+| Phase 6 | ✅ Complete | ACK system, input redundancy, interpolation (Labs 8-9) |
 
 ---
 
@@ -225,7 +226,7 @@ if (keyboard.wKey.isPressed) { }
 | Message | Size | Direction | Purpose |
 |---------|------|-----------|---------|
 | ClientInputMessage | 22 bytes | Client → Server | WASD + shoot + charge value + sequence |
-| ServerStateUpdateMessage | 6 + 30n bytes | Server → Clients | Player positions + health + alive state |
+| ServerStateUpdateMessage | 6 + 30n + 8n bytes | Server → Clients | Player positions + health + alive state + ACKs (Lab 8) |
 | ProjectileSpawnMessage | 53 bytes | Server → Clients | Arc projectile creation with trajectory |
 | ProjectileHitMessage | 23 bytes | Server → Clients | Hit notification with damage |
 | PlayerDeathMessage | 17 bytes | Server → Clients | Death notification |
@@ -363,6 +364,29 @@ public static XMessage DeserializeX(byte[] data)
 - ✅ Larger hit detection (1.5u radius for easier hits)
 - ✅ Bug fixes (boundary death struct overwrite, projectile landing height)
 
+### Phase 6: Network Robustness (Labs 8-9) ✅ COMPLETE
+
+**Session 6 - ACK System & Interpolation:**
+- ✅ Lab 8: Piggybacked ACK system (ACKs in ServerStateUpdateMessage)
+- ✅ Lab 8: Input history buffer with retransmission (100ms timeout)
+- ✅ Lab 8: Server-side deduplication (prevents duplicate input processing)
+- ✅ Lab 9: Snapshot buffer for interpolation (3 snapshots, 100ms delay)
+- ✅ Lab 9: Remote player interpolation (smooth 60 FPS rendering)
+- ✅ Lab 9: Enhanced reconciliation (ACK-aware blend speed adjustment)
+- ✅ Debug Tools: NetworkSimulator (packet loss simulation)
+- ✅ Debug Tools: ConnectionUI (easy IP/port configuration)
+
+**Critical Fixes:**
+- ✅ Removed Thread.Sleep() latency simulation (caused game freeze)
+- ✅ Fixed retransmission spam (Dictionary-based input history with lastRetransmitTime tracking)
+- ✅ Added rate limiting to retransmission checks (50ms interval)
+
+**New Files:**
+- `InputHistoryBuffer.cs` - Stores sent inputs for retransmission with timeout tracking
+- `SnapshotBuffer.cs` - Circular buffer for interpolating remote player positions
+- `NetworkSimulator.cs` - Packet loss simulation for testing reliability
+- `ConnectionUI.cs` - Simple OnGUI connection dialog for easy multiplayer playtesting
+
 ---
 
 ## Course Materials Integration
@@ -371,7 +395,8 @@ public static XMessage DeserializeX(byte[] data)
 |-----|----------|------------|
 | Lab 6 | ClientProxy pattern, Ping/Pong | GameNetworkManager connection |
 | Lab 7 | Passive replication, ReplicationManager | ServerStateUpdate broadcast |
-| Lab 8 | ACK system, sequence numbers | ClientInputMessage.sequenceNumber |
+| Lab 8 | ACK system, input redundancy | Piggybacked ACKs, InputHistoryBuffer, retransmission |
+| Lab 9 | Interpolation, reconciliation | SnapshotBuffer, interpolated remote players |
 
 ---
 
@@ -401,6 +426,10 @@ public static XMessage DeserializeX(byte[] data)
 | Charge/cooldown feedback | `Assets/Scripts/Gameplay/ShootVisualFeedback.cs` |
 | Health bar UI | `Assets/Scripts/UI/PlayerHealthBar.cs` |
 | Arena setup | `Assets/Scripts/Gameplay/ArenaSetup.cs` |
+| **Lab 8: Input reliability** | `Assets/Scripts/Network/InputHistoryBuffer.cs` |
+| **Lab 9: Interpolation** | `Assets/Scripts/Network/SnapshotBuffer.cs` |
+| **Debug: Network sim** | `Assets/Scripts/Network/NetworkSimulator.cs` |
+| **Debug: Connection UI** | `Assets/Scripts/UI/ConnectionUI.cs` |
 
 ### Testing
 
@@ -423,4 +452,4 @@ When starting a new Claude Code session:
 
 ---
 
-*Last Updated: 2025-12-21 | Last Change: Completed Phases 3-5 (Projectiles, Health, Charge-to-Shoot, Chibi Characters, Game Feel)*
+*Last Updated: 2026-01-03 | Last Change: Completed Phase 6 / Deliverable 5 (Labs 8-9: ACK System, Input Redundancy, Interpolation)*
